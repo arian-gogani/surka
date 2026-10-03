@@ -1,12 +1,12 @@
-# Ambo
+# Surka
 
-**Partner swaps that actually happen.** Two founders agree to promote each other, and Ambo runs the swap from yes to results: the terms, the deadlines, reminders to both sides, a check that each side delivered, and what the swap produced.
+**Partner swaps that actually happen.** Two founders agree to promote each other, and Surka runs the swap from yes to results: the terms, the deadlines, reminders to both sides, a check that each side delivered, and what the swap produced.
 
 This repository is Phase 1 of the [master plan](#where-this-fits): the deal sheet and the swap runner, built to make the manual pilot faster. You, the operator, still decide every swap; the software holds the terms, chases deadlines, checks proof, and keeps score.
 
 ## How a swap runs
 
-1. **Create it.** In the operator dashboard, add the two businesses and write what each gives and by when. Both sides must give something, or Ambo refuses the swap: no trade, no swap.
+1. **Create it.** In the operator dashboard, add the two businesses and write what each gives and by when. Both sides must give something, or Surka refuses the swap: no trade, no swap.
 2. **Send it.** Each side gets a private link, with no account needed. Send the partner theirs, then mark the swap as sent.
 3. **The partner answers.** Their link shows the deal sheet: both sides of the trade, meeting in the middle, with each side's track record. They accept, suggest changes, or decline. A counter reopens the terms for you to rework and send again.
 4. **Both sides deliver.** Each side marks its own commitments delivered, with a link that proves it, like the newsletter archive or the live listing. Reminders go out three days and one day before each deadline, and once if it's overdue.
@@ -17,7 +17,7 @@ Reputation counts **commitments kept, never results**: a partner controls whethe
 
 ## Quick start
 
-Requires Node 20 or newer. No database to install: locally, Ambo runs on [PGlite](https://pglite.dev), real Postgres compiled to WebAssembly, stored in `./.pglite`.
+Requires Node 20 or newer. No database to install: locally, Surka runs on [PGlite](https://pglite.dev), real Postgres compiled to WebAssembly, stored in `./.pglite`.
 
 ```bash
 npm install
@@ -43,7 +43,7 @@ Open http://localhost:3000 for the landing page, and http://localhost:3000/admin
 
 ## Deploying
 
-Ambo runs on Vercel with a hosted Postgres. Every deploy applies any new database migrations before building (`npm run vercel-build`), so the database never falls behind the code.
+Surka runs on Vercel with a hosted Postgres. Every deploy applies any new database migrations before building (`npm run vercel-build`), so the database never falls behind the code.
 
 1. **Create the project.** Import the GitHub repository in Vercel, or run `vercel link` in this folder.
 2. **Connect a database.** In the Vercel project, open Storage, choose Create Database, and pick Neon. Vercel's own Postgres product was retired, so Postgres now comes from the Marketplace; Neon is the serverless Postgres that replaced it. Vercel adds `DATABASE_URL` to the project for you.

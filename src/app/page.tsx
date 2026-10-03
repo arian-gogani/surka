@@ -44,7 +44,7 @@ export default function Home() {
             </h1>
             <p className="mt-6 max-w-prose text-lg leading-relaxed text-muted">
               You and another founder agree to promote each other. Then the swap stalls: nobody owns
-              the dates, the assets go missing, and nobody follows up. Ambo runs it for you, from yes
+              the dates, the assets go missing, and nobody follows up. Surka runs it for you, from yes
               to results.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
@@ -76,7 +76,7 @@ export default function Home() {
             b={{
               name: "Practice Manager Weekly",
               detail: "Newsletter for clinic managers",
-              record: "No swaps through Ambo yet",
+              record: "No swaps through Surka yet",
               gives: [{ description: "A dedicated section in the October 17 issue", dueDate: "2026-10-17" }],
             }}
           />
@@ -85,7 +85,7 @@ export default function Home() {
         <section id="how" className="border-t border-line bg-white">
           <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8">
             <div className="max-w-2xl">
-              <h2 className="text-3xl font-semibold sm:text-4xl">What Ambo does after you say yes</h2>
+              <h2 className="text-3xl font-semibold sm:text-4xl">What Surka does after you say yes</h2>
               <p className="mt-4 text-lg leading-relaxed text-muted">
                 Most swaps die for boring reasons. The terms are vague, nobody owns the timeline, assets
                 go missing, tracking is a mess, and nobody follows up. Each step below removes one of those.

@@ -8,7 +8,7 @@ import { getDb } from "@/db/client";
 import type { Commitment, Side } from "@/db/schema";
 import { formatDate, relativeDue } from "@/lib/dates";
 import { appUrl } from "@/lib/env";
-import { AmboError } from "@/lib/errors";
+import { SurkaError } from "@/lib/errors";
 import { sheetSide } from "@/lib/present";
 import { getSwapForToken, type SideView } from "@/lib/services/swaps";
 import { otherSide } from "@/lib/swap-rules";
@@ -35,7 +35,7 @@ export default async function SwapLinkPage({ params, searchParams }: Props) {
   try {
     view = await getSwapForToken(await getDb(), token);
   } catch (e) {
-    if (e instanceof AmboError && e.code === "not_found") notFound();
+    if (e instanceof SurkaError && e.code === "not_found") notFound();
     throw e;
   }
 
@@ -65,7 +65,7 @@ export default async function SwapLinkPage({ params, searchParams }: Props) {
 
         {view.swap.status === "draft" ? (
           me === "a" ? (
-            <Intro title="Draft" body={`Ambo hasn't sent this to ${theirParty.name} yet. Check the terms below.`}>
+            <Intro title="Draft" body={`Surka hasn't sent this to ${theirParty.name} yet. Check the terms below.`}>
               {sheet}
             </Intro>
           ) : (

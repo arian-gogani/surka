@@ -1,5 +1,5 @@
 import type { CommitmentStatus, Decision, Side, SwapStatus } from "@/db/schema";
-import { AmboError } from "./errors";
+import { SurkaError } from "./errors";
 
 const SWAP_TRANSITIONS: Record<SwapStatus, readonly SwapStatus[]> = {
   draft: ["proposed", "cancelled"],
@@ -17,7 +17,7 @@ export function canTransition(from: SwapStatus, to: SwapStatus): boolean {
 
 export function assertTransition(from: SwapStatus, to: SwapStatus): void {
   if (!canTransition(from, to)) {
-    throw new AmboError(
+    throw new SurkaError(
       `A swap that is ${STATUS_LABEL[from].toLowerCase()} can't move to ${STATUS_LABEL[to].toLowerCase()}.`,
       "conflict",
     );

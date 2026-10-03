@@ -23,7 +23,7 @@ import {
   type SwapStatus,
   type TrackingLink,
 } from "@/db/schema";
-import { AmboError } from "../errors";
+import { SurkaError } from "../errors";
 import { newAccessToken, newTrackingCode } from "../ids";
 import { computeRecord, type TrackRecord } from "../reputation";
 import {
@@ -47,7 +47,7 @@ import {
 
 function parse<T extends z.ZodType>(schema: T, input: unknown): z.output<T> {
   const parsed = schema.safeParse(input);
-  if (!parsed.success) throw new AmboError(firstIssue(parsed.error), "invalid");
+  if (!parsed.success) throw new SurkaError(firstIssue(parsed.error), "invalid");
   return parsed.data;
 }
 
@@ -73,16 +73,16 @@ function isUuid(value: unknown): value is string {
 }
 
 async function requireSwap(db: Db, swapId: string): Promise<Swap> {
-  if (!isUuid(swapId)) throw new AmboError("That swap doesn't exist.", "not_found");
+  if (!isUuid(swapId)) throw new SurkaError("That swap doesn't exist.", "not_found");
   const [swap] = await db.select().from(swaps).where(eq(swaps.id, swapId)).limit(1);
-  if (!swap) throw new AmboError("That swap doesn't exist.", "not_found");
+  if (!swap) throw new SurkaError("That swap doesn't exist.", "not_found");
   return swap;
 }
 
 async function requireAccess(db: Db, token: string): Promise<SwapAccess> {
   const [access] = await db.select().from(swapAccess).where(eq(swapAccess.token, token)).limit(1);
   if (!access) {
-    throw new AmboError("This link isn't valid. Ask the person who sent it for a new one.", "not_found");
+    throw new SurkaError("This link isn't valid. Ask the person who sent it for a new one.", "not_found");
   }
   return access;
 }
@@ -97,10 +97,10 @@ export async function createParty(db: Db, input: unknown): Promise<Party> {
 }
 
 export async function updateParty(db: Db, partyId: string, input: unknown): Promise<Party> {
-  if (!isUuid(partyId)) throw new AmboError("That business doesn't exist.", "not_found");
+  if (!isUuid(partyId)) throw new SurkaError("That business doesn't exist.", "not_found");
   const values = parse(partyInput, input);
   const [party] = await db.update(parties).set(values).where(eq(parties.id, partyId)).returning();
-  if (!party) throw new AmboError("That business doesn't exist.", "not_found");
+  if (!party) throw new SurkaError("That business doesn't exist.", "not_found");
   return party;
 }
 
@@ -142,7 +142,7 @@ export async function createSwap(db: Db, input: unknown): Promise<CreatedSwap> {
     .select({ id: parties.id })
     .from(parties)
     .where(inArray(parties.id, [values.partyAId, values.partyBId]));
-  if (found.length !== 2) throw new AmboError("Pick two businesses that exist.", "invalid");
+  if (found.length !== 2) throw new SurkaError("Pick two businesses that exist.", "invalid");
 
   return db.transaction(async (tx) => {
     const [swap] = await tx
@@ -174,11 +174,11 @@ export async function createSwap(db: Db, input: unknown): Promise<CreatedSwap> {
 export async function replaceCommitments(db: Db, swapId: string, input: unknown[]): Promise<void> {
   const swap = await requireSwap(db, swapId);
   if (!termsEditable(swap.status)) {
-    throw new AmboError("Terms are locked once both sides have agreed.", "conflict");
+    throw new SurkaError("Terms are locked once both sides have agreed.", "conflict");
   }
   const list = input.map((item) => parse(commitmentInput, item));
   if (!hasBothSides(list)) {
-    throw new AmboError("Both sides need to give something. No trade, no swap.", "invalid");
+    throw new SurkaError("Both sides need to give something. No trade, no swap.", "invalid");
   }
   await db.transaction(async (tx) => {
     await tx.delete(commitments).where(eq(commitments.swapId, swapId));
@@ -212,7 +212,7 @@ export async function cancelSwap(db: Db, swapId: string, reason?: string, now = 
 
 export async function logOperatorMinutes(db: Db, swapId: string, minutes: number): Promise<void> {
   if (!Number.isInteger(minutes) || minutes < 1 || minutes > 600) {
-    throw new AmboError("Log between 1 and 600 minutes at a time.", "invalid");
+    throw new SurkaError("Log between 1 and 600 minutes at a time.", "invalid");
   }
   await requireSwap(db, swapId);
   await db
@@ -292,11 +292,11 @@ export async function respond(db: Db, token: string, input: unknown, now = new D
   const values = parse(responseInput, input);
   const access = await requireAccess(db, token);
   if (access.side !== "b") {
-    throw new AmboError("Only the partner who received this proposal can answer it.", "not_allowed");
+    throw new SurkaError("Only the partner who received this proposal can answer it.", "not_allowed");
   }
   const swap = await requireSwap(db, access.swapId);
   if (swap.status !== "proposed") {
-    throw new AmboError("This proposal isn't waiting on an answer anymore.", "conflict");
+    throw new SurkaError("This proposal isn't waiting on an answer anymore.", "conflict");
   }
   const next = statusAfterDecision(values.decision);
 
@@ -332,20 +332,20 @@ export async function markDelivered(
   const access = await requireAccess(db, token);
   const swap = await requireSwap(db, access.swapId);
   if (swap.status !== "accepted") {
-    throw new AmboError("Delivery opens once both sides have agreed to the swap.", "conflict");
+    throw new SurkaError("Delivery opens once both sides have agreed to the swap.", "conflict");
   }
-  if (!isUuid(commitmentId)) throw new AmboError("That commitment isn't part of this swap.", "not_found");
+  if (!isUuid(commitmentId)) throw new SurkaError("That commitment isn't part of this swap.", "not_found");
   const [commitment] = await db
     .select()
     .from(commitments)
     .where(and(eq(commitments.id, commitmentId), eq(commitments.swapId, swap.id)))
     .limit(1);
-  if (!commitment) throw new AmboError("That commitment isn't part of this swap.", "not_found");
+  if (!commitment) throw new SurkaError("That commitment isn't part of this swap.", "not_found");
   if (commitment.side !== access.side) {
-    throw new AmboError("You can only mark your own side's commitments as delivered.", "not_allowed");
+    throw new SurkaError("You can only mark your own side's commitments as delivered.", "not_allowed");
   }
   if (!canMoveCommitment(commitment.status, "delivered")) {
-    throw new AmboError("This one has already been checked.", "conflict");
+    throw new SurkaError("This one has already been checked.", "conflict");
   }
   await db
     .update(commitments)
@@ -364,15 +364,15 @@ export async function verifyCommitment(
   outcome: Extract<CommitmentStatus, "kept" | "missed" | "pending">,
   now = new Date(),
 ): Promise<{ swapCompleted: boolean }> {
-  if (!isUuid(commitmentId)) throw new AmboError("That commitment doesn't exist.", "not_found");
+  if (!isUuid(commitmentId)) throw new SurkaError("That commitment doesn't exist.", "not_found");
   const [commitment] = await db.select().from(commitments).where(eq(commitments.id, commitmentId)).limit(1);
-  if (!commitment) throw new AmboError("That commitment doesn't exist.", "not_found");
+  if (!commitment) throw new SurkaError("That commitment doesn't exist.", "not_found");
   const swap = await requireSwap(db, commitment.swapId);
   if (swap.status !== "accepted") {
-    throw new AmboError("Only swaps in progress can have commitments checked.", "conflict");
+    throw new SurkaError("Only swaps in progress can have commitments checked.", "conflict");
   }
   if (!canMoveCommitment(commitment.status, outcome)) {
-    throw new AmboError("That commitment has already been checked.", "conflict");
+    throw new SurkaError("That commitment has already been checked.", "conflict");
   }
 
   return db.transaction(async (tx) => {

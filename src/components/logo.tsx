@@ -4,11 +4,11 @@ const LEFT = "M40 145V90A30 30 0 0 1 100 90V145";
 const RIGHT = "M100 145V90A30 30 0 0 1 160 90V145";
 
 /**
- * The Ambo mark: two arches that share one stem, forming the m. Where they
- * overlap, coral and teal combine into the seam color.
+ * The Surka mark: two arches that share one stem, one per side of a swap.
+ * Where they overlap, coral and teal combine into the seam color.
  */
 export function Mark({ size = 32, className }: { size?: number; className?: string }) {
-  const maskId = `ambo-mark-${useId().replace(/:/g, "")}`;
+  const maskId = `surka-mark-${useId().replace(/:/g, "")}`;
   return (
     <svg
       width={size}
@@ -38,13 +38,13 @@ export function Mark({ size = 32, className }: { size?: number; className?: stri
 
 export function Logo({ size = 28 }: { size?: number }) {
   return (
-    <span className="inline-flex items-center gap-2" aria-label="Ambo">
+    <span className="inline-flex items-center gap-2" aria-label="Surka">
       <Mark size={size} />
       <span
         className="font-display font-semibold text-ink"
         style={{ fontSize: size * 0.82, letterSpacing: "-0.03em", lineHeight: 1 }}
       >
-        ambo
+        surka
       </span>
     </span>
   );

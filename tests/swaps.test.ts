@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createPgliteDb, type Db } from "@/db/client";
 import type { EmailMessage } from "@/lib/email";
-import { AmboError } from "@/lib/errors";
+import { SurkaError } from "@/lib/errors";
 import { pilotMetrics } from "@/lib/services/metrics";
 import { runReminders } from "@/lib/services/reminders";
 import {
@@ -56,15 +56,15 @@ async function seedSwap() {
   return { app, newsletter, ...created };
 }
 
-async function expectAmbo(promise: Promise<unknown>, code: AmboError["code"]) {
-  await expect(promise).rejects.toSatisfy((e) => e instanceof AmboError && e.code === code);
+async function expectSurka(promise: Promise<unknown>, code: SurkaError["code"]) {
+  await expect(promise).rejects.toSatisfy((e) => e instanceof SurkaError && e.code === code);
 }
 
 describe("creating swaps", () => {
   it("refuses a swap where only one side gives something", async () => {
     const a = await createParty(db, { name: "A" });
     const b = await createParty(db, { name: "B" });
-    await expectAmbo(
+    await expectSurka(
       createSwap(db, {
         title: "One-sided",
         partyAId: a.id,
@@ -80,7 +80,7 @@ describe("creating swaps", () => {
 
   it("refuses a swap with itself", async () => {
     const a = await createParty(db, { name: "A" });
-    await expectAmbo(
+    await expectSurka(
       createSwap(db, {
         title: "Self swap",
         partyAId: a.id,
@@ -105,26 +105,26 @@ describe("creating swaps", () => {
   });
 
   it("rejects an unknown link", async () => {
-    await expectAmbo(getSwapForToken(db, "nope", NOW), "not_found");
+    await expectSurka(getSwapForToken(db, "nope", NOW), "not_found");
   });
 });
 
 describe("the partner's answer", () => {
   it("only accepts answers while a proposal is open", async () => {
     const { tokens } = await seedSwap();
-    await expectAmbo(respond(db, tokens.b, { decision: "accept" }, NOW), "conflict");
+    await expectSurka(respond(db, tokens.b, { decision: "accept" }, NOW), "conflict");
   });
 
   it("only lets the receiving side answer", async () => {
     const { swap, tokens } = await seedSwap();
     await markProposed(db, swap.id, NOW);
-    await expectAmbo(respond(db, tokens.a, { decision: "accept" }, NOW), "not_allowed");
+    await expectSurka(respond(db, tokens.a, { decision: "accept" }, NOW), "not_allowed");
   });
 
   it("requires a message with a counter, then allows reworked terms", async () => {
     const { swap, tokens } = await seedSwap();
     await markProposed(db, swap.id, NOW);
-    await expectAmbo(respond(db, tokens.b, { decision: "counter" }, NOW), "invalid");
+    await expectSurka(respond(db, tokens.b, { decision: "counter" }, NOW), "invalid");
     expect(await respond(db, tokens.b, { decision: "counter", message: "Two issues, not one" }, NOW)).toBe(
       "countered",
     );
@@ -145,7 +145,7 @@ describe("the partner's answer", () => {
     const { swap, tokens } = await seedSwap();
     await markProposed(db, swap.id, NOW);
     await respond(db, tokens.b, { decision: "accept" }, NOW);
-    await expectAmbo(
+    await expectSurka(
       replaceCommitments(db, swap.id, [
         { side: "a", description: "Changed", dueDate: "2026-10-05" },
         { side: "b", description: "Changed too", dueDate: "2026-10-05" },
@@ -168,11 +168,11 @@ describe("delivery and checking", () => {
 
   it("lets a side deliver only its own commitments, with proof", async () => {
     const { tokens, mine, theirs } = await acceptedSwap();
-    await expectAmbo(
+    await expectSurka(
       markDelivered(db, tokens.a, theirs.id, { proofUrl: "https://example.com/x" }, NOW),
       "not_allowed",
     );
-    await expectAmbo(markDelivered(db, tokens.a, mine.id, { proofUrl: "not a link" }, NOW), "invalid");
+    await expectSurka(markDelivered(db, tokens.a, mine.id, { proofUrl: "not a link" }, NOW), "invalid");
     await markDelivered(db, tokens.a, mine.id, { proofUrl: "https://clinicscheduler.example/promo" }, NOW);
     const view = await getSwapForToken(db, tokens.a, NOW);
     expect(view.commitments.find((c) => c.id === mine.id)?.status).toBe("delivered");
@@ -182,14 +182,14 @@ describe("delivery and checking", () => {
     const { app, newsletter, swap, mine, theirs } = await acceptedSwap();
     expect((await verifyCommitment(db, mine.id, "kept", NOW)).swapCompleted).toBe(false);
     expect((await verifyCommitment(db, theirs.id, "missed", NOW)).swapCompleted).toBe(true);
-    await expectAmbo(verifyCommitment(db, mine.id, "missed", NOW), "conflict");
+    await expectSurka(verifyCommitment(db, mine.id, "missed", NOW), "conflict");
 
     const appRecord = await partyRecord(db, app.id, NOW);
     const newsletterRecord = await partyRecord(db, newsletter.id, NOW);
     expect(appRecord).toMatchObject({ kept: 1, resolved: 1 });
     expect(newsletterRecord).toMatchObject({ kept: 0, resolved: 1 });
 
-    await expectAmbo(cancelSwap(db, swap.id, "too late", NOW), "conflict");
+    await expectSurka(cancelSwap(db, swap.id, "too late", NOW), "conflict");
   });
 
   it("keeps the timeline in the order things happened, even within one step", async () => {

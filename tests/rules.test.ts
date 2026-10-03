@@ -85,7 +85,7 @@ describe("track record", () => {
   it("starts empty", () => {
     const record = computeRecord([], NOW);
     expect(record).toEqual({ kept: 0, resolved: 0, score: null });
-    expect(describeRecord(record)).toBe("No swaps through Ambo yet");
+    expect(describeRecord(record)).toBe("No swaps through Surka yet");
   });
 
   it("ignores commitments that haven't been checked", () => {
@@ -157,11 +157,11 @@ describe("app URL", () => {
   });
 
   it("prefers APP_URL, then the Vercel production domain, then localhost", () => {
-    vi.stubEnv("APP_URL", "https://ambo.example/");
-    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "ambo.vercel.app");
-    expect(appUrl()).toBe("https://ambo.example");
+    vi.stubEnv("APP_URL", "https://surka.example/");
+    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "surka.vercel.app");
+    expect(appUrl()).toBe("https://surka.example");
     vi.stubEnv("APP_URL", "");
-    expect(appUrl()).toBe("https://ambo.vercel.app");
+    expect(appUrl()).toBe("https://surka.vercel.app");
     vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "");
     expect(appUrl()).toBe("http://localhost:3000");
   });

@@ -17,7 +17,7 @@ export function defaultEmailSender(): EmailSender {
       console.info(`[email] to=${m.to}\nsubject: ${m.subject}\n\n${m.text}\n`);
     };
   }
-  const from = process.env.EMAIL_FROM ?? "Ambo <swaps@example.com>";
+  const from = process.env.EMAIL_FROM ?? "Surka <swaps@example.com>";
   return async (m) => {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",

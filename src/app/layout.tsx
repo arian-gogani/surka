@@ -7,9 +7,9 @@ import "@fontsource/ibm-plex-sans/600.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "Ambo: partner swaps that actually happen", template: "%s | Ambo" },
+  title: { default: "Surka: partner swaps that actually happen", template: "%s | Surka" },
   description:
-    "You agree to a cross-promotion swap. Ambo runs it: terms, assets, deadlines, reminders, proof, and results, so both sides grow.",
+    "You agree to a cross-promotion swap. Surka runs it: terms, assets, deadlines, reminders, proof, and results, so both sides grow.",
   icons: { icon: "/icon.svg" },
 };
 

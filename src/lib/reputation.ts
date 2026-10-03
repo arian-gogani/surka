@@ -48,7 +48,7 @@ export function computeRecord(items: readonly CheckedCommitment[], now: Date): T
 }
 
 export function describeRecord(record: TrackRecord): string {
-  if (record.resolved === 0) return "No swaps through Ambo yet";
+  if (record.resolved === 0) return "No swaps through Surka yet";
   const noun = record.resolved === 1 ? "commitment" : "commitments";
   return `Kept ${record.kept} of ${record.resolved} ${noun}`;
 }

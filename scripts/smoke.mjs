@@ -71,7 +71,7 @@ async function submit(pathname, marker, fields) {
     headers: { origin: BASE, ...(cookie ? { cookie } : {}) },
   });
   const setCookie = res.headers.get("set-cookie");
-  if (setCookie?.startsWith("ambo_operator=")) cookie = setCookie.split(";")[0];
+  if (setCookie?.startsWith("surka_operator=")) cookie = setCookie.split(";")[0];
   return { status: res.status, location: res.headers.get("location") ?? "" };
 }
 
@@ -103,7 +103,7 @@ async function run() {
   const wrong = await submit("/admin/login", 'name="password"', { password: "nope" });
   check(query(wrong.location, "error") === "That password isn't right.", "wrong password is refused");
   await submit("/admin/login", 'name="password"', { password: ENV.ADMIN_PASSWORD });
-  check(cookie.startsWith("ambo_operator="), "right password starts a session");
+  check(cookie.startsWith("surka_operator="), "right password starts a session");
   check((await get("/admin")).status === 200, "dashboard opens with the session");
 
   console.log("Businesses and a new swap");
@@ -212,7 +212,7 @@ async function run() {
   check(cron.ok, "reminder cron runs with its secret");
 }
 
-const dataDir = mkdtempSync(path.join(tmpdir(), "ambo-smoke-"));
+const dataDir = mkdtempSync(path.join(tmpdir(), "surka-smoke-"));
 const server = spawn("npx", ["next", "start", "-p", String(PORT)], {
   env: { ...process.env, ...ENV, DATABASE_URL: "", PGLITE_DIR: dataDir },
   stdio: ["ignore", "pipe", "pipe"],

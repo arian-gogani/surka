@@ -117,6 +117,6 @@ function reminderText(p: {
     p.link,
     ``,
     `Thanks for keeping your side of the swap.`,
-    `Ambo`,
+    `Surka`,
   ].join("\n");
 }

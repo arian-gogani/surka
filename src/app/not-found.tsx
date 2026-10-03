@@ -10,7 +10,7 @@ export default function NotFound() {
         If someone sent you a swap link, it may have been mistyped. Ask them to send it again.
       </p>
       <Link href="/" className="mt-6 font-medium underline underline-offset-4">
-        Go to the Ambo homepage
+        Go to the Surka homepage
       </Link>
     </main>
   );

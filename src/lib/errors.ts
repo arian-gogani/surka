@@ -1,5 +1,5 @@
 /** An error whose message is safe and useful to show to the person acting. */
-export class AmboError extends Error {
+export class SurkaError extends Error {
   constructor(
     message: string,
     readonly code:
@@ -9,12 +9,12 @@ export class AmboError extends Error {
       | "conflict" = "invalid",
   ) {
     super(message);
-    this.name = "AmboError";
+    this.name = "SurkaError";
   }
 }
 
 export function messageFor(error: unknown): string {
-  if (error instanceof AmboError) return error.message;
+  if (error instanceof SurkaError) return error.message;
   console.error(error);
   return "Something went wrong on our side. Try again in a minute.";
 }

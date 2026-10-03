@@ -2,7 +2,7 @@ export const DAY_MS = 86_400_000;
 
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
 
-/** Calendar date in UTC as YYYY-MM-DD. Ambo schedules in UTC throughout. */
+/** Calendar date in UTC as YYYY-MM-DD. Surka schedules in UTC throughout. */
 export function toDateOnly(d: Date): string {
   return d.toISOString().slice(0, 10);
 }

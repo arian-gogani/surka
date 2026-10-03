@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sets Ambo's secrets on the Vercel project linked to this folder.
+# Sets Surka's secrets on the Vercel project linked to this folder.
 # Run it yourself, once:  npm run setup:vercel
 # It generates fresh random values and shows your operator password once.
 set -euo pipefail

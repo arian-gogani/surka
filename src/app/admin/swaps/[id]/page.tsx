@@ -9,7 +9,7 @@ import { getDb } from "@/db/client";
 import type { Side } from "@/db/schema";
 import { formatDate, relativeDue } from "@/lib/dates";
 import { appUrl } from "@/lib/env";
-import { AmboError } from "@/lib/errors";
+import { SurkaError } from "@/lib/errors";
 import { getSwapDetail, type SwapDetail } from "@/lib/services/swaps";
 import { possessive } from "@/lib/present";
 import { isFinal, termsEditable } from "@/lib/swap-rules";
@@ -69,7 +69,7 @@ export default async function SwapAdminPage({
   try {
     d = await getSwapDetail(await getDb(), id);
   } catch (e) {
-    if (e instanceof AmboError && e.code === "not_found") notFound();
+    if (e instanceof SurkaError && e.code === "not_found") notFound();
     throw e;
   }
 

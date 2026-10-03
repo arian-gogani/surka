@@ -31,11 +31,11 @@ export async function createPostgresDb(url: string): Promise<Db> {
   return drizzle(client, { schema }) as unknown as Db;
 }
 
-const store = globalThis as unknown as { __amboDb?: Promise<Db> };
+const store = globalThis as unknown as { __surkaDb?: Promise<Db> };
 
 /** The app's shared database handle, reused across hot reloads. */
 export function getDb(): Promise<Db> {
-  if (!store.__amboDb) {
+  if (!store.__surkaDb) {
     const url = process.env.DATABASE_URL?.trim();
     if (!url && process.env.VERCEL) {
       // Serverless functions can't keep a local database; fail clearly instead.
@@ -43,9 +43,9 @@ export function getDb(): Promise<Db> {
         "DATABASE_URL is not set. Add a Postgres database to this Vercel project from the Marketplace (Storage, then Create Database, then Neon) and redeploy.",
       );
     }
-    store.__amboDb = url
+    store.__surkaDb = url
       ? createPostgresDb(url)
       : createPgliteDb(process.env.PGLITE_DIR || path.join(process.cwd(), ".pglite"));
   }
-  return store.__amboDb;
+  return store.__surkaDb;
 }

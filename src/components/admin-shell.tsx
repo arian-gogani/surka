@@ -22,7 +22,7 @@ export function AdminShell({
     <div className="min-h-screen">
       <header className="border-b border-line bg-white">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-8 gap-y-3 px-5 py-4 sm:px-8">
-          <Link href="/admin" aria-label="Ambo operator home">
+          <Link href="/admin" aria-label="Surka operator home">
             <Logo size={24} />
           </Link>
           <nav aria-label="Operator" className="flex flex-wrap gap-1">

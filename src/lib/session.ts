@@ -1,7 +1,7 @@
 // Operator session: a signed, expiring cookie. Uses Web Crypto so the same
 // code runs in middleware (edge) and in server actions (node).
 
-export const SESSION_COOKIE = "ambo_operator";
+export const SESSION_COOKIE = "surka_operator";
 export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 14;
 
 const encoder = new TextEncoder();
@@ -51,7 +51,7 @@ export async function verifySessionValue(value: string | undefined, nowMs = Date
 export async function passwordMatches(candidate: string): Promise<boolean> {
   const expected = process.env.ADMIN_PASSWORD;
   if (!expected) return false;
-  const secret = sessionSecret() ?? "ambo";
+  const secret = sessionSecret() ?? "surka";
   const [a, b] = await Promise.all([hmac(secret, candidate), hmac(secret, expected)]);
   return sameHex(a, b);
 }
