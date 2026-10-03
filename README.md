@@ -2,6 +2,8 @@
 
 **Partner swaps that actually happen.** Two founders agree to promote each other, and Surka runs the swap from yes to results: the terms, the deadlines, reminders to both sides, a check that each side delivered, and what the swap produced.
 
+[**Live site**](https://ambo-topaz.vercel.app) · [How a swap runs](#how-a-swap-runs) · [Run it locally](#quick-start)
+
 This repository is Phase 1 of the [master plan](#where-this-fits): the deal sheet and the swap runner, built to make the manual pilot faster. You, the operator, still decide every swap; the software holds the terms, chases deadlines, checks proof, and keeps score.
 
 ## How a swap runs
