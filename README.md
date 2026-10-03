@@ -46,7 +46,7 @@ Open http://localhost:3000 for the landing page, and http://localhost:3000/admin
 Ambo runs on Vercel with a hosted Postgres. Every deploy applies any new database migrations before building (`npm run vercel-build`), so the database never falls behind the code.
 
 1. **Create the project.** Import the GitHub repository in Vercel, or run `vercel link` in this folder.
-2. **Connect a database.** In the Vercel project, open Storage and create a Postgres database. Vercel adds `DATABASE_URL` to the project for you.
+2. **Connect a database.** In the Vercel project, open Storage, choose Create Database, and pick Neon. Vercel's own Postgres product was retired, so Postgres now comes from the Marketplace; Neon is the serverless Postgres that replaced it. Vercel adds `DATABASE_URL` to the project for you.
 3. **Set the secrets.** Run `npm run setup:vercel` yourself. It generates the session and cron secrets, sets a random operator password, and shows that password once.
 4. **Deploy.** Push to `main`, or run `vercel deploy --prod`. The daily reminder job in `vercel.json` starts with the first production deploy, and Vercel Cron sends `CRON_SECRET` as a bearer token automatically.
 

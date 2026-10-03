@@ -40,7 +40,7 @@ export function getDb(): Promise<Db> {
     if (!url && process.env.VERCEL) {
       // Serverless functions can't keep a local database; fail clearly instead.
       throw new Error(
-        "DATABASE_URL is not set. Connect a Postgres database to this Vercel project (Storage, then Create Database) and redeploy.",
+        "DATABASE_URL is not set. Add a Postgres database to this Vercel project from the Marketplace (Storage, then Create Database, then Neon) and redeploy.",
       );
     }
     store.__amboDb = url
