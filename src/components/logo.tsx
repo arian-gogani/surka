@@ -1,40 +1,37 @@
-import { useId } from "react";
-
-/** Upper bowl, swept anticlockwise from the top-right terminal to the waist. */
-const UPPER = "M130 74A30 30 0 1 0 100 104";
-/** Lower bowl, swept the opposite way from the waist to the bottom-left terminal. */
-const LOWER = "M100 104A30 30 0 1 1 70 134";
+/**
+ * One disc, divided by an S. The upper bowl is drawn at radius 40 and the lower
+ * at 48: equal bowls read top-heavy, so letterforms shrink the upper one.
+ */
+const DIVIDE = "M100 50A40 40 0 0 0 100 100A48 48 0 0 1 100 150";
+/** Each half closes around its own side of the rim. */
+const LEFT = `${DIVIDE}A50 50 0 0 1 100 50Z`;
+const RIGHT = `${DIVIDE}A50 50 0 0 0 100 50Z`;
+/**
+ * Rotating each half about the centre opens the gap while leaving the outer
+ * silhouette a true circle, since every point stays on its own radius.
+ */
+const TILT = 4.5;
 
 /**
- * The Surka mark: an S built from two opposing arcs, one per side of a swap.
- * Neither arc is a letter on its own. Where they meet at the waist, coral and
- * teal overlap into the seam color.
+ * The Surka mark: two halves of one disc, one per side of a swap. The gap
+ * between them is an S. Rotate it 180° and it is itself, so neither half leads.
+ * Coral and teal are the pairing the deal sheet already uses for the two sides.
  */
 export function Mark({ size = 32, className }: { size?: number; className?: string }) {
-  const maskId = `surka-mark-${useId().replace(/:/g, "")}`;
   return (
     <svg
       width={size}
       height={size}
-      viewBox="25 29 150 150"
+      viewBox="44 44 112 112"
       aria-hidden="true"
       className={className}
     >
-      <defs>
-        <mask id={maskId} maskUnits="userSpaceOnUse" x="0" y="0" width="200" height="200">
-          <path d={UPPER} fill="none" stroke="#fff" strokeWidth="22" strokeLinecap="round" />
-        </mask>
-      </defs>
-      <path d={UPPER} fill="none" stroke="#FF5A36" strokeWidth="22" strokeLinecap="round" />
-      <path d={LOWER} fill="none" stroke="#0E7C7B" strokeWidth="22" strokeLinecap="round" />
-      <path
-        d={LOWER}
-        fill="none"
-        stroke="#0E2C1A"
-        strokeWidth="22"
-        strokeLinecap="round"
-        mask={`url(#${maskId})`}
-      />
+      <g transform={`rotate(${-TILT} 100 100)`}>
+        <path d={LEFT} fill="#FF5A36" />
+      </g>
+      <g transform={`rotate(${TILT} 100 100)`}>
+        <path d={RIGHT} fill="#0E7C7B" />
+      </g>
     </svg>
   );
 }
