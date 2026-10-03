@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Surka runs partner swaps between software founders from yes to results.",
-  "license": "UNLICENSED",
+  "license": "AGPL-3.0-only",
   "engines": {
     "node": ">=20"
   },
