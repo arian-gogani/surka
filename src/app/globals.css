@@ -49,3 +49,10 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* React puts a hidden field at the start of every form that uses a server
+   action. Without this, that field pushes the first visible element of a
+   stacked form down by a full gap. */
+form > input[type="hidden"] + :not(input[type="hidden"]) {
+  margin-top: 0 !important;
+}

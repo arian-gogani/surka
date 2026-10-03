@@ -11,6 +11,7 @@ import { formatDate, relativeDue } from "@/lib/dates";
 import { appUrl } from "@/lib/env";
 import { AmboError } from "@/lib/errors";
 import { getSwapDetail, type SwapDetail } from "@/lib/services/swaps";
+import { possessive } from "@/lib/present";
 import { isFinal, termsEditable } from "@/lib/swap-rules";
 import {
   addLinkAction,
@@ -106,7 +107,9 @@ export default async function SwapAdminPage({
           if (!l) return null;
           return (
             <div key={side} className="rounded-xl border border-line bg-white p-5">
-              <p className="font-medium">{side === "b" ? `${d.partyB.name}'s link (send this to the partner)` : `${d.partyA.name}'s link`}</p>
+              <p className="font-medium">
+                {side === "b" ? `${possessive(d.partyB.name)} link (send this to the partner)` : `${possessive(d.partyA.name)} link`}
+              </p>
               <p className="mb-3 mt-0.5 text-[13px] text-muted">
                 {l.viewed ? `Last opened ${STAMP.format(l.viewed)}` : "Not opened yet"}
               </p>
@@ -167,12 +170,12 @@ export default async function SwapAdminPage({
           <details className="rounded-xl border border-line bg-white p-5">
             <summary className="cursor-pointer font-medium">Rework the terms</summary>
             <form action={replaceTermsAction} className="mt-4 space-y-4">
-              <input type="hidden" name="swapId" value={d.swap.id} />
               <TermsFields
                 names={{ a: d.partyA.name, b: d.partyB.name }}
                 rows={d.commitments.map((c) => ({ side: c.side, description: c.description, dueDate: c.dueDate }))}
               />
               <Button type="submit">Save terms</Button>
+              <input type="hidden" name="swapId" value={d.swap.id} />
             </form>
           </details>
         ) : null}
@@ -194,7 +197,7 @@ export default async function SwapAdminPage({
                   <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
                     <span className="text-[15px]">
                       <span className="font-medium">{l.label}</span>
-                      <span className="text-muted"> in {name(l.side)}&apos;s channel</span>
+                      <span className="text-muted"> in {possessive(name(l.side))} channel</span>
                     </span>
                     <span className="num text-[13px] text-muted">
                       {l.clicks} {l.clicks === 1 ? "click" : "clicks"}
@@ -207,7 +210,6 @@ export default async function SwapAdminPage({
           )}
           {!isFinal(status) ? (
             <form action={addLinkAction} className="space-y-3 rounded-xl border border-line bg-white p-4">
-              <input type="hidden" name="swapId" value={d.swap.id} />
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Placed by">
                   <select name="side" className="field" defaultValue="b">
@@ -223,6 +225,7 @@ export default async function SwapAdminPage({
                 <input name="destinationUrl" type="url" required placeholder="https://" className="field" />
               </Field>
               <Button type="submit">Create link</Button>
+              <input type="hidden" name="swapId" value={d.swap.id} />
             </form>
           ) : null}
         </section>
@@ -246,7 +249,6 @@ export default async function SwapAdminPage({
             </ul>
           )}
           <form action={addResultAction} className="space-y-3 rounded-xl border border-line bg-white p-4">
-            <input type="hidden" name="swapId" value={d.swap.id} />
             <div className="grid gap-3 sm:grid-cols-3">
               <Field label="Growth for">
                 <select name="side" className="field" defaultValue="a">
@@ -271,6 +273,7 @@ export default async function SwapAdminPage({
               <input name="note" className="field" />
             </Field>
             <Button type="submit">Save result</Button>
+            <input type="hidden" name="swapId" value={d.swap.id} />
           </form>
         </section>
       </div>

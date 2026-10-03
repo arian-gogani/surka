@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 const securityHeaders = [
@@ -13,6 +14,9 @@ const nextConfig: NextConfig = {
   // load from node_modules at runtime instead of being bundled.
   serverExternalPackages: ["@electric-sql/pglite", "postgres"],
   poweredByHeader: false,
+  // A package-lock.json in a parent folder makes Next.js guess the wrong
+  // project root; pin it to this folder.
+  outputFileTracingRoot: path.resolve(process.cwd()),
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },

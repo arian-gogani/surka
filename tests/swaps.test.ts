@@ -10,6 +10,7 @@ import {
   cancelSwap,
   createParty,
   createSwap,
+  getSwapDetail,
   getSwapForToken,
   logOperatorMinutes,
   markDelivered,
@@ -189,6 +190,16 @@ describe("delivery and checking", () => {
     expect(newsletterRecord).toMatchObject({ kept: 0, resolved: 1 });
 
     await expectAmbo(cancelSwap(db, swap.id, "too late", NOW), "conflict");
+  });
+
+  it("keeps the timeline in the order things happened, even within one step", async () => {
+    const { swap, mine, theirs } = await acceptedSwap();
+    await verifyCommitment(db, mine.id, "kept", NOW);
+    await verifyCommitment(db, theirs.id, "kept", NOW);
+    const { events } = await getSwapDetail(db, swap.id);
+    // Newest first. Checking the last commitment and completing the swap share a timestamp.
+    expect(events.slice(0, 3).map((e) => e.type)).toEqual(["completed", "kept", "kept"]);
+    expect(events.at(-1)?.type).toBe("created");
   });
 });
 

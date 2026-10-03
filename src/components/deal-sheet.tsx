@@ -43,7 +43,7 @@ export function DealSheet({
 
 function SideColumn({ side, data, isViewer }: { side: Side; data: DealSheetSide; isViewer: boolean }) {
   return (
-    <section className="px-5 py-5 sm:px-6" aria-label={`What ${data.name} gives`}>
+    <section className="flex flex-col px-5 py-5 sm:px-6" aria-label={`What ${data.name} gives`}>
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <SideTag name={data.name} side={side} />
         {isViewer ? <span className="text-[13px] text-muted">You</span> : null}
@@ -58,7 +58,9 @@ function SideColumn({ side, data, isViewer }: { side: Side; data: DealSheetSide;
           </li>
         ))}
       </ul>
-      <p className="mt-5 border-t border-line pt-3 text-[13px] text-muted">{data.record}</p>
+      <div className="mt-auto pt-5">
+        <p className="border-t border-line pt-3 text-[13px] text-muted">{data.record}</p>
+      </div>
     </section>
   );
 }

@@ -248,7 +248,7 @@ export async function getSwapDetail(db: Db, swapId: string): Promise<SwapDetail>
       db.select().from(responses).where(eq(responses.swapId, swapId)).orderBy(desc(responses.createdAt)),
       db.select().from(trackingLinks).where(eq(trackingLinks.swapId, swapId)).orderBy(asc(trackingLinks.createdAt)),
       db.select().from(results).where(eq(results.swapId, swapId)).orderBy(desc(results.createdAt)),
-      db.select().from(events).where(eq(events.swapId, swapId)).orderBy(desc(events.createdAt)),
+      db.select().from(events).where(eq(events.swapId, swapId)).orderBy(desc(events.seq)),
     ]);
   const partyA = partyRows.find((p) => p.id === swap.partyAId);
   const partyB = partyRows.find((p) => p.id === swap.partyBId);

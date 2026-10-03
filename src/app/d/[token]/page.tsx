@@ -137,7 +137,6 @@ function Intro({ title, body, children }: { title: string; body: string; childre
 function RespondForm({ token }: { token: string }) {
   return (
     <form action={respondAction} className="space-y-5 rounded-xl border border-line bg-white p-5 sm:p-6">
-      <input type="hidden" name="token" value={token} />
       <h2 className="text-xl font-semibold">Your answer</h2>
       <Field label="Your email" hint="For dates and reminders about this swap. It isn't shared or used for anything else.">
         <input name="email" type="email" autoComplete="email" className="field max-w-md" />
@@ -156,6 +155,7 @@ function RespondForm({ token }: { token: string }) {
           Decline
         </Button>
       </div>
+      <input type="hidden" name="token" value={token} />
     </form>
   );
 }
@@ -258,7 +258,6 @@ function SwapRoom({
           )}
         </div>
         <form action={reportResultAction} className="space-y-4 rounded-xl border border-line bg-white p-5">
-          <input type="hidden" name="token" value={view.token} />
           <h3 className="font-semibold">Report what you got from it</h3>
           <div className="grid grid-cols-[1fr_8rem] gap-3">
             <Field label="Measure">
@@ -278,6 +277,7 @@ function SwapRoom({
             <input name="note" className="field" />
           </Field>
           <Button type="submit">Save result</Button>
+          <input type="hidden" name="token" value={view.token} />
         </form>
       </section>
     </div>

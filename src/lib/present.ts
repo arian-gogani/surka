@@ -19,6 +19,11 @@ function host(url: string | null): string | null {
   }
 }
 
+/** "Glow Reviews' link", "Bundle Builder's link". */
+export function possessive(name: string): string {
+  return /s$/i.test(name.trim()) ? `${name}'` : `${name}'s`;
+}
+
 export function partyDetail(party: Party): string {
   return [KIND_LABEL[party.kind], host(party.website)].filter(Boolean).join(", ");
 }

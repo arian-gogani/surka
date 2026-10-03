@@ -1,4 +1,5 @@
 import {
+  bigserial,
   date,
   index,
   integer,
@@ -170,9 +171,11 @@ export const events = pgTable(
     type: text("type").notNull(),
     side: text("side").$type<Side>(),
     detail: text("detail"),
+    /** Insertion order. Events written in one transaction share a timestamp. */
+    seq: bigserial("seq", { mode: "number" }).notNull(),
     createdAt: createdAt(),
   },
-  (t) => [index("events_swap_idx").on(t.swapId, t.createdAt)],
+  (t) => [index("events_swap_idx").on(t.swapId, t.seq)],
 );
 
 /** One row per reminder sent, so a reminder never goes out twice. */

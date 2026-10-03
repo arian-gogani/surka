@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { addDays, daysUntil, isValidDateOnly } from "@/lib/dates";
 import { computeRecord, describeRecord, HALF_LIFE_DAYS } from "@/lib/reputation";
+import { possessive } from "@/lib/present";
 import { dueReminderKind } from "@/lib/reminders";
 import {
   allResolved,
@@ -139,5 +140,12 @@ describe("reminder timing", () => {
 
   it("leaves delivered commitments alone", () => {
     expect(dueReminderKind({ status: "delivered", dueDate: "2026-10-01" }, [], NOW)).toBeNull();
+  });
+});
+
+describe("wording", () => {
+  it("writes possessives the way people do", () => {
+    expect(possessive("Bundle Builder")).toBe("Bundle Builder's");
+    expect(possessive("Glow Reviews")).toBe("Glow Reviews'");
   });
 });
