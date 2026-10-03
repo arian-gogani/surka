@@ -1,6 +1,13 @@
-/** Absolute base URL for links in emails and copy buttons. */
+/**
+ * Absolute base URL for links in emails and copy buttons: APP_URL if set,
+ * then the Vercel project's production domain, then localhost.
+ */
 export function appUrl(): string {
-  return (process.env.APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+  const explicit = process.env.APP_URL?.trim();
+  if (explicit) return explicit.replace(/\/+$/, "");
+  const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (vercel) return `https://${vercel}`;
+  return "http://localhost:3000";
 }
 
 export function contactEmail(): string {

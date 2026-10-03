@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { addDays, daysUntil, isValidDateOnly } from "@/lib/dates";
+import { appUrl } from "@/lib/env";
 import { computeRecord, describeRecord, HALF_LIFE_DAYS } from "@/lib/reputation";
 import { possessive } from "@/lib/present";
 import { dueReminderKind } from "@/lib/reminders";
@@ -147,5 +148,21 @@ describe("wording", () => {
   it("writes possessives the way people do", () => {
     expect(possessive("Bundle Builder")).toBe("Bundle Builder's");
     expect(possessive("Glow Reviews")).toBe("Glow Reviews'");
+  });
+});
+
+describe("app URL", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("prefers APP_URL, then the Vercel production domain, then localhost", () => {
+    vi.stubEnv("APP_URL", "https://ambo.example/");
+    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "ambo.vercel.app");
+    expect(appUrl()).toBe("https://ambo.example");
+    vi.stubEnv("APP_URL", "");
+    expect(appUrl()).toBe("https://ambo.vercel.app");
+    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "");
+    expect(appUrl()).toBe("http://localhost:3000");
   });
 });

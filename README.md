@@ -43,17 +43,19 @@ Open http://localhost:3000 for the landing page, and http://localhost:3000/admin
 
 ## Deploying
 
-The app runs anywhere Next.js runs. On Vercel with a hosted Postgres such as Neon:
+Ambo runs on Vercel with a hosted Postgres. Every deploy applies any new database migrations before building (`npm run vercel-build`), so the database never falls behind the code.
 
-1. Create a Postgres database and copy its connection string.
-2. Run `DATABASE_URL=... npm run db:migrate` from your machine.
-3. Import the repository in Vercel and set the environment variables below.
-4. The daily reminder job is already declared in `vercel.json`. Vercel Cron sends `CRON_SECRET` as a bearer token automatically.
+1. **Create the project.** Import the GitHub repository in Vercel, or run `vercel link` in this folder.
+2. **Connect a database.** In the Vercel project, open Storage and create a Postgres database. Vercel adds `DATABASE_URL` to the project for you.
+3. **Set the secrets.** Run `npm run setup:vercel` yourself. It generates the session and cron secrets, sets a random operator password, and shows that password once.
+4. **Deploy.** Push to `main`, or run `vercel deploy --prod`. The daily reminder job in `vercel.json` starts with the first production deploy, and Vercel Cron sends `CRON_SECRET` as a bearer token automatically.
+
+Without `DATABASE_URL`, a Vercel deployment refuses to start and says why, instead of falling back to a local database that can't work there.
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `DATABASE_URL` | In production | Postgres connection string. Empty means local PGlite. |
-| `APP_URL` | Yes | Public URL, used in links and emails |
+| `APP_URL` | No | Public URL for links and emails. Defaults to the Vercel production domain; set it for a custom domain. |
 | `ADMIN_PASSWORD` | Yes | Operator dashboard password |
 | `SESSION_SECRET` | Yes | 16+ random characters for signing the operator session |
 | `CRON_SECRET` | Yes | Protects `/api/cron/reminders` |

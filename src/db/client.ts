@@ -37,6 +37,12 @@ const store = globalThis as unknown as { __amboDb?: Promise<Db> };
 export function getDb(): Promise<Db> {
   if (!store.__amboDb) {
     const url = process.env.DATABASE_URL?.trim();
+    if (!url && process.env.VERCEL) {
+      // Serverless functions can't keep a local database; fail clearly instead.
+      throw new Error(
+        "DATABASE_URL is not set. Connect a Postgres database to this Vercel project (Storage, then Create Database) and redeploy.",
+      );
+    }
     store.__amboDb = url
       ? createPostgresDb(url)
       : createPgliteDb(process.env.PGLITE_DIR || path.join(process.cwd(), ".pglite"));
