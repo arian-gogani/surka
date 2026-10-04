@@ -16,7 +16,7 @@ This repository is Phase 1 of the [master plan](#where-this-fits): the deal shee
 1. **Create it.** In the operator dashboard, add the two businesses and write what each gives and by when. Both sides must give something, or Surka refuses the swap: no trade, no swap.
 2. **Send it.** Each side gets a private link, with no account needed. Send the partner theirs, then mark the swap as sent.
 3. **The partner answers.** Their link shows the deal sheet: both sides of the trade, meeting in the middle, with each side's track record. They accept, suggest changes, or decline. A counter reopens the terms for you to rework and send again.
-4. **Both sides deliver.** Each side marks its own commitments delivered, with a link that proves it, like the newsletter archive or the live listing. Reminders go out three days and one day before each deadline, and once if it's overdue.
+4. **Both sides deliver.** Each side marks its own commitments delivered, with a link that proves it, like the newsletter archive or the live listing. The cron computes who is due three days and one day before each deadline, and once if it's overdue. Delivery by email needs `RESEND_API_KEY`; without it those reminders are written to the server log and the operator follows up by hand.
 5. **You check it.** Mark each commitment kept or missed against its proof. When everything is checked, the swap completes on its own.
 6. **Everyone sees the result.** Tracking links count clicks for each placement, and either side can report installs or signups. Results are shared only between the two sides.
 
