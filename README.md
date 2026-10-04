@@ -5,7 +5,7 @@
 
 **Partner swaps that actually happen.** Two founders agree to promote each other, and Surka runs the swap from yes to results: the terms, the deadlines, reminders to both sides, a check that each side delivered, and what the swap produced.
 
-[**Live site**](https://ambo-topaz.vercel.app) · [How a swap runs](#how-a-swap-runs) · [Run it locally](#quick-start)
+[**Live site**](https://surka.vercel.app) · [How a swap runs](#how-a-swap-runs) · [Run it locally](#quick-start)
 
 No database to install and no accounts to create. It runs locally on Postgres compiled to WebAssembly, the integration tests run against a real Postgres in memory, and every form works with JavaScript turned off.
 
