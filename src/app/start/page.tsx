@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Logo } from "@/components/logo";
-import { Button, Field, Notice } from "@/components/ui";
+import { SubmitButton } from "@/components/submit-button";
+import { Field, Notice } from "@/components/ui";
 import { addDays, toDateOnly } from "@/lib/dates";
 import { startSwapAction } from "./actions";
 
@@ -130,7 +131,7 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
           </fieldset>
 
           <div className="flex flex-wrap items-center gap-4">
-            <Button variant="action">Create the deal sheet</Button>
+            <SubmitButton pendingLabel="Creating...">Create the deal sheet</SubmitButton>
             <p className="text-[15px] text-muted">Nothing is sent anywhere until you share the link yourself.</p>
           </div>
         </form>

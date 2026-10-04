@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { CopyLink } from "@/components/copy-link";
 import { DealSheet } from "@/components/deal-sheet";
 import { Logo } from "@/components/logo";
-import { Button, CommitmentState, Field, Notice, SideTag, StatusPill } from "@/components/ui";
+import { Button, ButtonLink, CommitmentState, Field, Notice, SideTag, StatusPill } from "@/components/ui";
 import { getDb } from "@/db/client";
 import type { Commitment, Side } from "@/db/schema";
 import { formatDate, relativeDue } from "@/lib/dates";
@@ -117,8 +117,30 @@ export default async function SwapLinkPage({ params, searchParams }: Props) {
             {sheet}
           </Intro>
         ) : null}
+
+        <RunYourOwn />
       </main>
     </div>
+  );
+}
+
+/**
+ * The only way out of this page. Whoever is reading it has just watched the
+ * product work on a swap of their own, without an account, which makes them the
+ * best-qualified visitor the site gets. Until now it dead-ended here.
+ */
+function RunYourOwn() {
+  return (
+    <aside className="mt-14 rounded-xl border border-line bg-white px-6 py-7">
+      <h2 className="text-xl font-semibold">Got a swap of your own in mind?</h2>
+      <p className="mt-2 max-w-prose text-muted">
+        Write down what each side gives and by when, and we&apos;ll hold both of you to it. No account, and
+        your partner doesn&apos;t need one either.
+      </p>
+      <ButtonLink href="/start" variant="action" className="mt-5">
+        Start a swap
+      </ButtonLink>
+    </aside>
   );
 }
 
