@@ -49,10 +49,10 @@ export default function Home() {
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <a
-                href={mailto}
+                href="/start"
                 className="inline-flex min-h-11 items-center rounded-md bg-spark px-5 text-[15px] font-medium text-ink hover:bg-[#ff6d4d]"
               >
-                Run your first swap
+                Start a swap
               </a>
               <a
                 href="#how"
@@ -140,10 +140,10 @@ export default function Home() {
               </div>
             </div>
             <a
-              href={mailto}
+              href="/start"
               className="inline-flex min-h-11 shrink-0 items-center rounded-md bg-spark px-5 text-[15px] font-medium text-ink hover:bg-[#ff6d4d]"
             >
-              Run your first swap
+              Start a swap
             </a>
           </div>
         </section>
