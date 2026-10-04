@@ -3,7 +3,7 @@
 [![CI](https://github.com/arian-gogani/surka/actions/workflows/ci.yml/badge.svg)](https://github.com/arian-gogani/surka/actions/workflows/ci.yml)
 [![Licence: AGPL v3](https://img.shields.io/badge/licence-AGPL--3.0-blue.svg)](LICENSE)
 
-**Partner swaps that actually happen.** Two founders agree to promote each other, and Surka runs the swap from yes to results: the terms, the deadlines, reminders to both sides, a check that each side delivered, and what the swap produced.
+**Partner swaps that actually happen.** Two founders agree to promote each other, and Surka helps run the swap from yes to results: the terms, the deadlines, follow-up, a check that each side delivered, and what the swap produced. During the first pilot, follow-up is manual; automated email delivery has not been verified in production.
 
 [**Live site**](https://surka.vercel.app) · [How a swap runs](#how-a-swap-runs) · [Run it locally](#quick-start)
 

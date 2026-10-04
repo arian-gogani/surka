@@ -12,8 +12,8 @@ const STEPS = [
     body: "The blurb, the image, the link. You approve them once.",
   },
   {
-    title: "Chases both sides",
-    body: "Reminders three days and one day before every deadline, so nobody has to be the one who follows up.",
+    title: "Tracks the follow-up",
+    body: "Dates stay on the deal sheet. During the first pilot, we'll follow up with both sides manually; automated email delivery is not live yet.",
   },
   {
     title: "Checks that it happened",
@@ -61,7 +61,7 @@ export default function Home() {
                 See how a swap runs
               </a>
             </div>
-            <p className="mt-4 text-[15px] text-muted">Your part is two approvals: the deal, and the final assets.</p>
+            <p className="mt-4 text-[15px] text-muted">Your part: agree to the terms, approve the assets, and deliver your side.</p>
           </div>
 
           <DealSheet

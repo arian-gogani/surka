@@ -9,7 +9,7 @@ import "./globals.css";
 
 const TITLE = "Surka: partner swaps that actually happen";
 const DESCRIPTION =
-  "You agree to a cross-promotion swap. Surka runs it: terms, assets, deadlines, reminders, proof, and results, so both sides grow.";
+  "You agree to a cross-promotion swap. Surka helps run the pilot: terms, assets, deadlines, follow-up, proof, and results, so both sides grow.";
 
 export const metadata: Metadata = {
   // Absolute base for the share card, so links posted elsewhere resolve it.

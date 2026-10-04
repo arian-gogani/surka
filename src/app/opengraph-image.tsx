@@ -54,7 +54,7 @@ export default function Image() {
             Partner swaps that actually happen.
           </div>
           <div style={{ fontSize: 34, color: "#6B6358", marginTop: 28, maxWidth: 940 }}>
-            Terms, deadlines, reminders to both sides, and proof each side delivered.
+            Terms, deadlines, proof of delivery, and a record both sides can inspect.
           </div>
         </div>
 
