@@ -448,6 +448,12 @@ export interface SwapListItem {
   partyAName: string;
   partyBName: string;
   nextDue: Pick<Commitment, "description" | "dueDate" | "side"> | null;
+  /**
+   * Commitments a side has marked delivered that nobody has checked yet. These
+   * have no due date left to run out, so without counting them a swap waiting
+   * on the operator looks identical to one with nothing happening.
+   */
+  awaitingCheck: number;
 }
 
 export async function listSwaps(db: Db): Promise<SwapListItem[]> {
@@ -461,29 +467,37 @@ export async function listSwaps(db: Db): Promise<SwapListItem[]> {
     .orderBy(desc(swaps.createdAt));
   if (rows.length === 0) return [];
 
-  const pending = await db
-    .select({
-      swapId: commitments.swapId,
-      description: commitments.description,
-      dueDate: commitments.dueDate,
-      side: commitments.side,
-    })
-    .from(commitments)
-    .where(
-      and(
-        inArray(
-          commitments.swapId,
-          rows.map((r) => r.swap.id),
-        ),
-        eq(commitments.status, "pending"),
-      ),
-    )
-    .orderBy(asc(commitments.dueDate));
+  const swapIds = rows.map((r) => r.swap.id);
+  const [pending, delivered] = await Promise.all([
+    db
+      .select({
+        swapId: commitments.swapId,
+        description: commitments.description,
+        dueDate: commitments.dueDate,
+        side: commitments.side,
+      })
+      .from(commitments)
+      .where(and(inArray(commitments.swapId, swapIds), eq(commitments.status, "pending")))
+      .orderBy(asc(commitments.dueDate)),
+    db
+      .select({ swapId: commitments.swapId })
+      .from(commitments)
+      .where(and(inArray(commitments.swapId, swapIds), eq(commitments.status, "delivered"))),
+  ]);
+
+  const checksBySwap = new Map<string, number>();
+  for (const c of delivered) {
+    checksBySwap.set(c.swapId, (checksBySwap.get(c.swapId) ?? 0) + 1);
+  }
   const nextBySwap = new Map<string, SwapListItem["nextDue"]>();
   for (const c of pending) {
     if (!nextBySwap.has(c.swapId)) {
       nextBySwap.set(c.swapId, { description: c.description, dueDate: c.dueDate, side: c.side });
     }
   }
-  return rows.map((r) => ({ ...r, nextDue: nextBySwap.get(r.swap.id) ?? null }));
+  return rows.map((r) => ({
+    ...r,
+    nextDue: nextBySwap.get(r.swap.id) ?? null,
+    awaitingCheck: checksBySwap.get(r.swap.id) ?? 0,
+  }));
 }

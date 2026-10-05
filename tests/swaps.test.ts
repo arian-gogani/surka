@@ -12,6 +12,7 @@ import {
   createSwap,
   getSwapDetail,
   getSwapForToken,
+  listSwaps,
   logOperatorMinutes,
   markDelivered,
   markProposed,
@@ -344,5 +345,30 @@ describe("the public path into a swap", () => {
       }),
       "invalid",
     );
+  });
+});
+
+describe("the operator dashboard surfaces work", () => {
+  it("counts deliveries waiting to be checked, which have no due date left", async () => {
+    const { swap, tokens } = await seedSwap();
+    await markProposed(db, swap.id, NOW);
+    await respond(db, tokens.b, { decision: "accept" }, NOW);
+
+    const view = await getSwapForToken(db, tokens.a, NOW);
+    const mine = view.commitments.find((c) => c.side === "a");
+    if (!mine) throw new Error("expected a commitment on side a");
+    await markDelivered(db, tokens.a, mine.id, { proofUrl: "https://example.com/proof" }, NOW);
+
+    const [listed] = await listSwaps(db);
+    if (!listed) throw new Error("expected the swap to be listed");
+    // Before this was counted, a swap in exactly this state read "Nothing due".
+    expect(listed.awaitingCheck).toBe(1);
+  });
+
+  it("reports nothing waiting when every commitment is still pending", async () => {
+    const { swap } = await seedSwap();
+    await markProposed(db, swap.id, NOW);
+    const [listed] = await listSwaps(db);
+    expect(listed?.awaitingCheck).toBe(0);
   });
 });

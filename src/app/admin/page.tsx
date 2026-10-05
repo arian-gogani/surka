@@ -85,7 +85,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {swaps.map(({ swap, partyAName, partyBName, nextDue }) => (
+              {swaps.map(({ swap, partyAName, partyBName, nextDue, awaitingCheck }) => (
                 <tr key={swap.id} className="hover:bg-paper/60">
                   <td className="px-5 py-4">
                     <Link href={`/admin/swaps/${swap.id}`} className="font-medium underline-offset-4 hover:underline">
@@ -106,6 +106,10 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
                           {nextDue.side === "a" ? partyAName : partyBName}: {nextDue.description}
                         </p>
                       </>
+                    ) : awaitingCheck > 0 ? (
+                      <span className="font-medium text-spark-deep">
+                        {awaitingCheck === 1 ? "1 delivery to check" : `${awaitingCheck} deliveries to check`}
+                      </span>
                     ) : (
                       <span className="text-muted">Nothing due</span>
                     )}
