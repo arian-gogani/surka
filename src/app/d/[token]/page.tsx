@@ -118,7 +118,7 @@ export default async function SwapLinkPage({ params, searchParams }: Props) {
           </Intro>
         ) : null}
 
-        <RunYourOwn />
+        <RunYourOwn token={view.token} />
       </main>
     </div>
   );
@@ -129,15 +129,17 @@ export default async function SwapLinkPage({ params, searchParams }: Props) {
  * product work on a swap of their own, without an account, which makes them the
  * best-qualified visitor the site gets. Until now it dead-ended here.
  */
-function RunYourOwn() {
+function RunYourOwn({ token }: { token: string }) {
   return (
     <aside className="mt-14 rounded-xl border border-line bg-white px-6 py-7">
       <h2 className="text-xl font-semibold">Got a swap of your own in mind?</h2>
       <p className="mt-2 max-w-prose text-muted">
         Write down what each side gives and by when, and we&apos;ll hold both of you to it. No account, and
-        your partner doesn&apos;t need one either.
+        your partner doesn&apos;t need one either. Your side carries over, so your record keeps building.
       </p>
-      <ButtonLink href="/start" variant="action" className="mt-5">
+      {/* The token proves which business this is, which is what lets the next
+          swap reuse the same party instead of starting their record from zero. */}
+      <ButtonLink href={`/start?from=${token}`} variant="action" className="mt-5">
         Start a swap
       </ButtonLink>
     </aside>

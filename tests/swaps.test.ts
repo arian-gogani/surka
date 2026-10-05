@@ -17,6 +17,7 @@ import {
   markDelivered,
   markProposed,
   partyRecord,
+  partyForToken,
   recordClick,
   replaceCommitments,
   reportResult,
@@ -397,5 +398,44 @@ describe("the Phase 0 gate counts whole swaps", () => {
     // gate. Only one of the two swaps actually delivered in full.
     expect(m.onTimeRate).toBeCloseTo(0.75);
     expect(m.swapsFullyKept).toBe(1);
+  });
+});
+
+describe("a track record survives into the next swap", () => {
+  it("resolves the holder's own business from their link", async () => {
+    const { app, newsletter, tokens } = await seedSwap();
+    await expect(partyForToken(db, tokens.a)).resolves.toMatchObject({ id: app.id });
+    await expect(partyForToken(db, tokens.b)).resolves.toMatchObject({ id: newsletter.id });
+  });
+
+  it("returns nothing for a token that isn't real, so no identity leaks", async () => {
+    await seedSwap();
+    await expect(partyForToken(db, "not-a-token")).resolves.toBeNull();
+  });
+
+  it("carries the record forward when the same party runs a second swap", async () => {
+    const first = await seedSwap();
+    await markProposed(db, first.swap.id, NOW);
+    await respond(db, first.tokens.b, { decision: "accept" }, NOW);
+    const view = await getSwapForToken(db, first.tokens.a, NOW);
+    for (const c of view.commitments) await verifyCommitment(db, c.id, "kept", NOW);
+
+    // Reusing the party is what the /start "from" token does.
+    const carried = await partyForToken(db, first.tokens.a);
+    if (!carried) throw new Error("expected a party for the holder's token");
+    const other = await createParty(db, { name: "Someone New", kind: "newsletter" });
+    const second = await createSwap(db, {
+      title: "A second swap for the same business",
+      partyAId: carried.id,
+      partyBId: other.id,
+      commitments: [
+        { side: "a", description: "Another thing from me", dueDate: "2026-11-01" },
+        { side: "b", description: "Another thing from them", dueDate: "2026-11-02" },
+      ],
+    });
+
+    // A fresh party would read zero here, which is the bug this prevents.
+    const shown = await getSwapForToken(db, second.tokens.b, NOW);
+    expect(shown.records.a.kept).toBeGreaterThan(0);
   });
 });

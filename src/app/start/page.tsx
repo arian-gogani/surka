@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { Logo } from "@/components/logo";
 import { SubmitButton } from "@/components/submit-button";
 import { Field, Notice } from "@/components/ui";
+import { getDb } from "@/db/client";
 import { addDays, toDateOnly } from "@/lib/dates";
+import { partyForToken } from "@/lib/services/swaps";
 import { startSwapAction } from "./actions";
 
 /** Mirrors the kinds accepted by partyInput; shown on the deal sheet under each name. */
@@ -20,11 +22,18 @@ export const metadata: Metadata = {
     "Write down what each side gives and by when. You get two private links: one for you, one to send your partner.",
 };
 
-export default async function StartPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
-  const { error } = await searchParams;
+export default async function StartPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; from?: string }>;
+}) {
+  const { error, from } = await searchParams;
   // A deadline in the past is always a mis-click here, so the picker won't offer one.
   const today = toDateOnly(new Date());
   const inTwoWeeks = addDays(today, 14);
+  // Arriving from an existing swap link: we already know who this side is, and
+  // reusing that business is what lets their track record build up over swaps.
+  const you = from ? await partyForToken(await getDb(), from) : null;
 
   return (
     <div className="min-h-screen">
@@ -50,6 +59,8 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
         ) : null}
 
         <form action={startSwapAction} className="mt-10 space-y-8">
+          {you ? <input type="hidden" name="from" value={from} /> : null}
+
           <Field label="What's the swap?" hint="A few words. Both sides see this.">
             <input
               name="title"
@@ -63,12 +74,25 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
 
           <fieldset className="space-y-4 rounded-xl border border-line bg-white p-5">
             <legend className="px-2 text-sm font-semibold">Your side</legend>
+            {you ? (
+              <p className="text-[15px] text-muted">
+                Carrying over <span className="font-medium text-ink">{you.name}</span> from your last swap, so your
+                record builds up instead of starting over.
+              </p>
+            ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Your business">
-                <input name="yourName" required maxLength={120} placeholder="Clinic Scheduler" className="field" />
+                <input
+                  name="yourName"
+                  required
+                  maxLength={120}
+                  defaultValue={you?.name ?? ""}
+                  placeholder="Clinic Scheduler"
+                  className="field"
+                />
               </Field>
               <Field label="What kind">
-                <select name="yourKind" className="field" defaultValue="app">
+                <select name="yourKind" className="field" defaultValue={you?.kind ?? "app"}>
                   {KINDS.map((k) => (
                     <option key={k.value} value={k.value}>
                       {k.label}
@@ -78,10 +102,22 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
               </Field>
             </div>
             <Field label="Website" hint="Optional">
-              <input name="yourWebsite" type="url" placeholder="https://example.com" className="field" />
+              <input
+                name="yourWebsite"
+                type="url"
+                defaultValue={you?.website ?? ""}
+                placeholder="https://example.com"
+                className="field"
+              />
             </Field>
             <Field label="Your email" hint="Optional. For swap reminders if email delivery is enabled.">
-              <input name="yourEmail" type="email" autoComplete="email" className="field" />
+              <input
+                name="yourEmail"
+                type="email"
+                autoComplete="email"
+                defaultValue={you?.email ?? ""}
+                className="field"
+              />
             </Field>
             <Field label="What you'll give" hint="Be specific enough that someone could check it happened.">
               <input

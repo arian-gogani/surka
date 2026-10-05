@@ -89,6 +89,23 @@ async function requireAccess(db: Db, token: string): Promise<SwapAccess> {
 
 // Parties ------------------------------------------------------------------
 
+/**
+ * The business on the holder's side of a swap link.
+ *
+ * Holding the token proves control of that side, which is what makes it safe
+ * to carry the same party into a new swap. Without this, every swap started
+ * from the public form mints a fresh business, so a founder's track record
+ * never accumulates and "no swaps yet" shows forever.
+ */
+export async function partyForToken(db: Db, token: string): Promise<Party | null> {
+  const [access] = await db.select().from(swapAccess).where(eq(swapAccess.token, token)).limit(1);
+  if (!access) return null;
+  const swap = await requireSwap(db, access.swapId);
+  const partyId = access.side === "a" ? swap.partyAId : swap.partyBId;
+  const [party] = await db.select().from(parties).where(eq(parties.id, partyId)).limit(1);
+  return party ?? null;
+}
+
 export async function createParty(db: Db, input: unknown): Promise<Party> {
   const values = parse(partyInput, input);
   const [party] = await db.insert(parties).values(values).returning();

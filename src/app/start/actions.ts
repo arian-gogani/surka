@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
 import { messageFor } from "@/lib/errors";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
-import { createParty, createSwap, markProposed } from "@/lib/services/swaps";
+import { createParty, createSwap, markProposed, partyForToken } from "@/lib/services/swaps";
 
 /** Five swaps per address per hour: generous for a real founder, dull for a script. */
 const LIMIT = 5;
@@ -31,13 +31,17 @@ export async function startSwapAction(formData: FormData) {
 
   try {
     const db = await getDb();
+    // Holding a link from an earlier swap proves which business you are, so
+    // carry that same party forward and let the track record accumulate.
+    const returning = field("from") ? await partyForToken(db, field("from")) : null;
     const [you, partner] = await Promise.all([
-      createParty(db, {
-        name: field("yourName"),
-        kind: field("yourKind") || "app",
-        website: field("yourWebsite") || null,
-        email: field("yourEmail") || null,
-      }),
+      returning ??
+        createParty(db, {
+          name: field("yourName"),
+          kind: field("yourKind") || "app",
+          website: field("yourWebsite") || null,
+          email: field("yourEmail") || null,
+        }),
       createParty(db, {
         name: field("partnerName"),
         kind: field("partnerKind") || "other",
