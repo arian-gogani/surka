@@ -293,3 +293,56 @@ describe("pilot metrics", () => {
     expect(m.resultTotals.installs).toBe(15);
   });
 });
+
+/**
+ * The /start route composes these three calls with no operator involved. The
+ * pieces are covered individually above; this pins the sequence a stranger
+ * actually triggers, including that the partner's link works immediately.
+ */
+describe("the public path into a swap", () => {
+  it("creates both sides, proposes it, and issues two working links", async () => {
+    const mine = await createParty(db, { name: "Clinic Scheduler", kind: "app" });
+    const theirs = await createParty(db, { name: "Practice Manager Weekly", kind: "newsletter" });
+    const { swap, tokens } = await createSwap(db, {
+      title: "Newsletter section for an extended trial",
+      partyAId: mine.id,
+      partyBId: theirs.id,
+      commitments: [
+        { side: "a", description: "Extra free month for readers", dueDate: "2026-10-18" },
+        { side: "b", description: "Dedicated section in the Oct 17 issue", dueDate: "2026-10-17" },
+      ],
+    });
+    await markProposed(db, swap.id, NOW);
+
+    // The partner can open their link and answer without an account.
+    const partnerView = await getSwapForToken(db, tokens.b, NOW);
+    expect(partnerView.side).toBe("b");
+    expect(partnerView.swap.status).toBe("proposed");
+    expect(partnerView.commitments).toHaveLength(2);
+
+    // And the creator's link is a different side of the same swap.
+    const mineView = await getSwapForToken(db, tokens.a, NOW);
+    expect(mineView.side).toBe("a");
+    expect(mineView.swap.id).toBe(swap.id);
+    expect(tokens.a).not.toBe(tokens.b);
+
+    await expect(respond(db, tokens.b, { decision: "accept" }, NOW)).resolves.toBe("accepted");
+  });
+
+  it("refuses a swap where only one side gives, even from the public form", async () => {
+    const mine = await createParty(db, { name: "Clinic Scheduler", kind: "app" });
+    const theirs = await createParty(db, { name: "Practice Manager Weekly", kind: "newsletter" });
+    await expectSurka(
+      createSwap(db, {
+        title: "A one-sided favour",
+        partyAId: mine.id,
+        partyBId: theirs.id,
+        commitments: [
+          { side: "a", description: "Extra free month for readers", dueDate: "2026-10-18" },
+          { side: "a", description: "And a second thing from me", dueDate: "2026-10-19" },
+        ],
+      }),
+      "invalid",
+    );
+  });
+});

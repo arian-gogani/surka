@@ -22,7 +22,9 @@ export const metadata: Metadata = {
 
 export default async function StartPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
-  const inTwoWeeks = addDays(toDateOnly(new Date()), 14);
+  // A deadline in the past is always a mis-click here, so the picker won't offer one.
+  const today = toDateOnly(new Date());
+  const inTwoWeeks = addDays(today, 14);
 
   return (
     <div className="min-h-screen">
@@ -52,7 +54,8 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
             <input
               name="title"
               required
-              maxLength={160}
+              minLength={3}
+              maxLength={140}
               placeholder="Newsletter feature for an extended trial"
               className="field"
             />
@@ -81,13 +84,14 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
               <input
                 name="yourGive"
                 required
+                minLength={3}
                 maxLength={500}
                 placeholder="An extra free month for readers who sign up through the link"
                 className="field"
               />
             </Field>
             <Field label="By when">
-              <input name="yourDue" type="date" required defaultValue={inTwoWeeks} className="field" />
+              <input name="yourDue" type="date" required min={today} defaultValue={inTwoWeeks} className="field" />
             </Field>
           </fieldset>
 
@@ -120,13 +124,14 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
               <input
                 name="partnerGive"
                 required
+                minLength={3}
                 maxLength={500}
                 placeholder="A dedicated section in the October 17 issue"
                 className="field"
               />
             </Field>
             <Field label="By when">
-              <input name="partnerDue" type="date" required defaultValue={inTwoWeeks} className="field" />
+              <input name="partnerDue" type="date" required min={today} defaultValue={inTwoWeeks} className="field" />
             </Field>
           </fieldset>
 
