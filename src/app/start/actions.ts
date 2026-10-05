@@ -36,6 +36,7 @@ export async function startSwapAction(formData: FormData) {
         name: field("yourName"),
         kind: field("yourKind") || "app",
         website: field("yourWebsite") || null,
+        email: field("yourEmail") || null,
       }),
       createParty(db, {
         name: field("partnerName"),

@@ -80,6 +80,9 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
             <Field label="Website" hint="Optional">
               <input name="yourWebsite" type="url" placeholder="https://example.com" className="field" />
             </Field>
+            <Field label="Your email" hint="Optional. For swap reminders if email delivery is enabled.">
+              <input name="yourEmail" type="email" autoComplete="email" className="field" />
+            </Field>
             <Field label="What you'll give" hint="Be specific enough that someone could check it happened.">
               <input
                 name="yourGive"
