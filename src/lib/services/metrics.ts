@@ -16,6 +16,13 @@ export interface PilotMetrics {
   minutesPerCompletedSwap: number | null;
   /** Businesses that agreed to more than one swap. */
   repeatParties: number;
+  /**
+   * Completed swaps where nothing was missed. The Phase 0 gate is written in
+   * swaps ("3 of 5 on time"), while onTimeRate is per commitment, so a swap
+   * that half delivered still lifts that percentage. This counts whole swaps.
+   */
+  swapsFullyKept: number;
+  completedSwaps: number;
   resultTotals: Partial<Record<ResultMetric, number>>;
 }
 
@@ -33,7 +40,8 @@ const ALL_STATUSES: SwapStatus[] = [
 export async function pilotMetrics(db: Db, now = new Date()): Promise<PilotMetrics> {
   const weekAgo = new Date(now.getTime() - 7 * DAY_MS);
 
-  const [statusRows, weekRows, commitmentRows, minutesRows, partyRows, resultRows] = await Promise.all([
+  const [statusRows, weekRows, commitmentRows, minutesRows, partyRows, fullyKeptRows, resultRows] =
+    await Promise.all([
     db.select({ status: swaps.status, n: sql<number>`count(*)::int` }).from(swaps).groupBy(swaps.status),
     db
       .select({ n: sql<number>`count(*)::int` })
@@ -59,6 +67,13 @@ export async function pilotMetrics(db: Db, now = new Date()): Promise<PilotMetri
         having count(*) > 1
       ) repeaters
     `),
+    db.execute<{ n: number }>(sql`
+      select count(*)::int as n from swaps s
+      where s.status = 'completed'
+        and not exists (
+          select 1 from commitments c where c.swap_id = s.id and c.status = 'missed'
+        )
+    `),
     db
       .select({ metric: results.metric, total: sql<number>`sum(${results.value})::int` })
       .from(results)
@@ -76,6 +91,9 @@ export async function pilotMetrics(db: Db, now = new Date()): Promise<PilotMetri
   const answered = everAccepted + swapsByStatus.declined;
 
   const repeatRows = Array.isArray(partyRows) ? partyRows : (partyRows as { rows: { n: number }[] }).rows;
+  const keptRows = Array.isArray(fullyKeptRows)
+    ? fullyKeptRows
+    : (fullyKeptRows as { rows: { n: number }[] }).rows;
 
   return {
     swapsByStatus,
@@ -86,6 +104,8 @@ export async function pilotMetrics(db: Db, now = new Date()): Promise<PilotMetri
     acceptanceRate: answered === 0 ? null : everAccepted / answered,
     minutesPerCompletedSwap: minutesRows[0]?.avg ?? null,
     repeatParties: Number(repeatRows[0]?.n ?? 0),
+    swapsFullyKept: Number(keptRows[0]?.n ?? 0),
+    completedSwaps: swapsByStatus.completed,
     resultTotals: Object.fromEntries(resultRows.map((r) => [r.metric, r.total])),
   };
 }

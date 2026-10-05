@@ -372,3 +372,30 @@ describe("the operator dashboard surfaces work", () => {
     expect(listed?.awaitingCheck).toBe(0);
   });
 });
+
+describe("the Phase 0 gate counts whole swaps", () => {
+  it("separates a swap that fully delivered from one that half did", async () => {
+    // Swap one: both sides kept.
+    const clean = await seedSwap();
+    await markProposed(db, clean.swap.id, NOW);
+    await respond(db, clean.tokens.b, { decision: "accept" }, NOW);
+    const cleanView = await getSwapForToken(db, clean.tokens.a, NOW);
+    for (const c of cleanView.commitments) await verifyCommitment(db, c.id, "kept", NOW);
+
+    // Swap two: one side kept, the other missed.
+    const partial = await seedSwap();
+    await markProposed(db, partial.swap.id, NOW);
+    await respond(db, partial.tokens.b, { decision: "accept" }, NOW);
+    const partialView = await getSwapForToken(db, partial.tokens.a, NOW);
+    for (const c of partialView.commitments) {
+      await verifyCommitment(db, c.id, c.side === "a" ? "kept" : "missed", NOW);
+    }
+
+    const m = await pilotMetrics(db, NOW);
+    expect(m.completedSwaps).toBe(2);
+    // Three of four commitments were kept, which reads as 75% and flatters the
+    // gate. Only one of the two swaps actually delivered in full.
+    expect(m.onTimeRate).toBeCloseTo(0.75);
+    expect(m.swapsFullyKept).toBe(1);
+  });
+});

@@ -28,9 +28,10 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       note: `${metrics.completedThisWeek} this week, ${open} open`,
     },
     {
-      label: "Delivered on time",
-      value: pct(metrics.onTimeRate),
-      note: `${metrics.keptCommitments} of ${metrics.checkedCommitments} commitments kept`,
+      // The Phase 0 gate is written in whole swaps, so lead with that number.
+      label: "Swaps fully delivered",
+      value: `${metrics.swapsFullyKept} of ${metrics.completedSwaps}`,
+      note: `${pct(metrics.onTimeRate)} of commitments kept (${metrics.keptCommitments} of ${metrics.checkedCommitments})`,
     },
     { label: "Partners who accept", value: pct(metrics.acceptanceRate), note: "Of proposals answered" },
     {
