@@ -1,10 +1,11 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
 import { messageFor } from "@/lib/errors";
 import { requireOperator } from "@/lib/operator";
+import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { createSessionValue, passwordMatches, SESSION_COOKIE, SESSION_TTL_SECONDS } from "@/lib/session";
 import {
   addResult,
@@ -51,7 +52,20 @@ function partyFields(formData: FormData) {
   };
 }
 
+/**
+ * Ten tries per address per quarter hour. A person who mistypes twice never
+ * meets it; a script gets nowhere. The password itself is long and random, but
+ * that is a property of the password rather than of the login.
+ */
+const LOGIN_LIMIT = 10;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+
 export async function loginAction(formData: FormData) {
+  const limit = rateLimit(`login:${clientKey(await headers())}`, LOGIN_LIMIT, LOGIN_WINDOW_MS);
+  if (!limit.ok) {
+    go("/admin/login", { error: `Too many attempts. Try again in ${limit.retryAfterSeconds} seconds.` });
+  }
+
   const password = String(formData.get("password") ?? "");
   if (!(await passwordMatches(password))) {
     go("/admin/login", { error: "That password isn't right." });
