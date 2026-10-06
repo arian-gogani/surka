@@ -16,11 +16,26 @@ const KINDS = [
   { value: "other", label: "Something else" },
 ] as const;
 
-export const metadata: Metadata = {
-  title: "Start a swap",
-  description:
-    "Write down what each side gives and by when. You get two private links: one for you, one to send your partner.",
-};
+/**
+ * Arriving from a deal sheet puts a private token in the query string, so that
+ * variant is kept out of search engines. The bare page stays indexable because
+ * it is the public way in. Referrers are suppressed either way, so a token can
+ * never ride along to an external site.
+ */
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string }>;
+}): Promise<Metadata> {
+  const { from } = await searchParams;
+  return {
+    title: "Start a swap",
+    description:
+      "Write down what each side gives and by when. You get two private links: one for you, one to send your partner.",
+    referrer: "no-referrer",
+    ...(from ? { robots: { index: false, follow: false } } : {}),
+  };
+}
 
 export default async function StartPage({
   searchParams,
