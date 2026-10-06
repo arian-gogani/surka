@@ -84,3 +84,26 @@ describe("a rejected submit keeps what was typed", () => {
     expect(state.values.partnerKind).toBe("newsletter");
   });
 });
+
+describe("a rejected submit leaves nothing behind", () => {
+  it("writes no businesses when the terms are invalid", async () => {
+    const { listParties } = await import("@/lib/services/swaps");
+    const before = (await listParties(db)).length;
+
+    const form = new FormData();
+    for (const [key, value] of Object.entries({
+      title: "A swap that will be rejected",
+      yourName: "Orphan One",
+      yourGive: "Something real",
+      yourDue: "2026-10-08",
+      partnerName: "Orphan Two",
+      partnerGive: "Something real",
+      partnerDue: "not-a-date",
+    })) form.set(key, value);
+
+    expect((await startSwapAction(EMPTY_START, form)).error).toBeTruthy();
+    // Previously both businesses were written before the date was checked, and
+    // every retry added two more with no swap attached.
+    expect((await listParties(db)).length).toBe(before);
+  });
+});

@@ -6,6 +6,7 @@ import { getDb } from "@/db/client";
 import { messageFor } from "@/lib/errors";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { createParty, createSwap, partyForToken } from "@/lib/services/swaps";
+import { commitmentInput, firstIssue } from "@/lib/validation";
 import { START_FIELDS, type StartField, type StartState } from "./state";
 
 /** Five swaps per address per hour: generous for a real founder, dull for a script. */
@@ -29,6 +30,19 @@ export async function startSwapAction(_previous: StartState, formData: FormData)
   const limit = rateLimit(clientKey(await headers()), LIMIT, WINDOW_MS);
   if (!limit.ok) {
     return fail(`That's a few too many swaps at once. Try again in ${limit.retryAfterSeconds} seconds.`);
+  }
+
+  // Check the parts that can fail before writing any businesses. Creating the
+  // parties first meant a rejected date left two orphan rows behind, and a
+  // retry left two more, cluttering the operator's list with businesses that
+  // belong to no swap.
+  const terms = [
+    { side: "a", description: field("yourGive"), dueDate: field("yourDue") },
+    { side: "b", description: field("partnerGive"), dueDate: field("partnerDue") },
+  ];
+  for (const term of terms) {
+    const parsed = commitmentInput.safeParse(term);
+    if (!parsed.success) return fail(firstIssue(parsed.error));
   }
 
   let tokens: { a: string; b: string };
@@ -58,10 +72,7 @@ export async function startSwapAction(_previous: StartState, formData: FormData)
         title: field("title"),
         partyAId: you.id,
         partyBId: partner.id,
-        commitments: [
-          { side: "a", description: field("yourGive"), dueDate: field("yourDue") },
-          { side: "b", description: field("partnerGive"), dueDate: field("partnerDue") },
-        ],
+        commitments: terms,
       },
       { status: "proposed" },
     );
