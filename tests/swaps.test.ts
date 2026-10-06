@@ -633,3 +633,14 @@ describe("a mis-check can be undone", () => {
     await expectSurka(verifyCommitment(db, first.id, "pending", NOW), "conflict");
   });
 });
+
+describe("re-sending a deal sheet", () => {
+  it("is idempotent, so a double click is not an error", async () => {
+    const { swap } = await seedSwap();
+    await markProposed(db, swap.id, NOW);
+    // Previously: "A swap that is waiting on partner can't move to waiting on
+    // partner." shown to the operator for a click that had already worked.
+    await expect(markProposed(db, swap.id, NOW)).resolves.toBeUndefined();
+    expect((await getSwapDetail(db, swap.id)).swap.status).toBe("proposed");
+  });
+});

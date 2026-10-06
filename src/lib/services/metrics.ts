@@ -75,7 +75,9 @@ export async function pilotMetrics(db: Db, now = new Date()): Promise<PilotMetri
         )
     `),
     db
-      .select({ metric: results.metric, total: sql<number>`sum(${results.value})::int` })
+      // bigint: int4 overflows at about 215 max-value rows and the exception
+      // escapes pilotMetrics, taking the whole dashboard down with it.
+      .select({ metric: results.metric, total: sql<number>`sum(${results.value})::bigint` })
       .from(results)
       .groupBy(results.metric),
   ]);
@@ -106,6 +108,6 @@ export async function pilotMetrics(db: Db, now = new Date()): Promise<PilotMetri
     repeatParties: Number(repeatRows[0]?.n ?? 0),
     swapsFullyKept: Number(keptRows[0]?.n ?? 0),
     completedSwaps: swapsByStatus.completed,
-    resultTotals: Object.fromEntries(resultRows.map((r) => [r.metric, r.total])),
+    resultTotals: Object.fromEntries(resultRows.map((r) => [r.metric, Number(r.total)])),
   };
 }

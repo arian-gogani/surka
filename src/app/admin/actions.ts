@@ -117,6 +117,9 @@ export async function createSwapAction(formData: FormData) {
 async function onSwap(formData: FormData, run: (swapId: string) => Promise<unknown>, success: string) {
   await requireOperator();
   const swapId = String(formData.get("swapId") ?? "");
+  // Without a swap id both branches below redirect to /admin/swaps/, which is
+  // a 404, so the error message is lost entirely.
+  if (!swapId) go("/admin", { error: "That swap link was incomplete. Open the swap and try again." });
   try {
     await run(swapId);
   } catch (error) {
@@ -146,6 +149,10 @@ export async function replaceTermsAction(formData: FormData) {
 }
 
 export async function verifyAction(formData: FormData) {
+  // Authenticate before touching the body. Otherwise an unauthenticated post
+  // builds a redirect out of a caller-supplied path segment rather than
+  // bouncing to the login.
+  await requireOperator();
   const outcome = String(formData.get("outcome") ?? "");
   if (outcome !== "kept" && outcome !== "missed" && outcome !== "pending") {
     go(`/admin/swaps/${String(formData.get("swapId") ?? "")}`, { error: "Pick kept or missed." });

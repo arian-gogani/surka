@@ -3,7 +3,10 @@ import { SurkaError } from "./errors";
 
 const SWAP_TRANSITIONS: Record<SwapStatus, readonly SwapStatus[]> = {
   draft: ["proposed", "cancelled"],
-  proposed: ["accepted", "countered", "declined", "cancelled"],
+  // Re-sending a deal sheet is idempotent; it only refreshes proposedAt. Without
+  // this, a double-clicked "Mark as sent" told the operator "A swap that is
+  // waiting on partner can't move to waiting on partner."
+  proposed: ["proposed", "accepted", "countered", "declined", "cancelled"],
   countered: ["proposed", "declined", "cancelled"],
   accepted: ["completed", "cancelled"],
   // Reopening a checked commitment pulls the swap back here. A completed swap
