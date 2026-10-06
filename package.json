@@ -20,7 +20,8 @@
     "db:seed": "tsx scripts/seed.ts",
     "check": "npm run typecheck && npm run test",
     "smoke": "node scripts/smoke.mjs",
-    "setup:vercel": "bash scripts/setup-vercel-env.sh"
+    "setup:vercel": "bash scripts/setup-vercel-env.sh",
+    "post": "tsx scripts/post.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.8",
