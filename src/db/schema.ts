@@ -25,6 +25,7 @@ export type SwapStatus =
   | "declined"
   | "cancelled";
 export type CommitmentStatus = "pending" | "delivered" | "kept" | "missed";
+export type OpenedBy = "operator" | "proposer";
 export type Decision = "accept" | "counter" | "decline";
 export type ReminderKind = "3d" | "1d" | "overdue";
 export type ResultMetric = "installs" | "signups" | "trials" | "clicks" | "other";
@@ -60,6 +61,12 @@ export const swaps = pgTable(
       .notNull()
       .references(() => parties.id),
     notes: text("notes"),
+    /**
+     * Who opened the swap, and therefore whose job it is to get the partner
+     * their link. An operator hands it over themselves; a proposer using the
+     * public form has to send it, so their own page has to show it to them.
+     */
+    openedBy: text("opened_by").$type<OpenedBy>().notNull().default("operator"),
     /** Minutes the operator spent running this swap by hand. */
     operatorMinutes: integer("operator_minutes").notNull().default(0),
     createdAt: createdAt(),

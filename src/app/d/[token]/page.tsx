@@ -12,7 +12,7 @@ import { SurkaError } from "@/lib/errors";
 import { sheetSide } from "@/lib/present";
 import { getSwapForToken, type SideView } from "@/lib/services/swaps";
 import { otherSide } from "@/lib/swap-rules";
-import { deliverAction, reportResultAction, respondAction } from "./actions";
+import { deliverAction, reportResultAction, respondAction, setEmailAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +43,24 @@ export default async function SwapLinkPage({ params, searchParams }: Props) {
   const them = otherSide(me);
   const myParty = me === "a" ? view.partyA : view.partyB;
   const theirParty = me === "a" ? view.partyB : view.partyA;
+  /**
+   * The partner's link, shown back to the proposer only when the proposer is
+   * the one who has to send it.
+   *
+   * /start shows it once on the sent page and nowhere else, so closing that
+   * tab lost it forever: the proposer then sat on a page that said the deal
+   * sheet had been sent, waiting for an answer that could never come.
+   *
+   * Gated on openedBy, because the link is also what proves the partner is the
+   * partner. When an operator opened the swap they hand it over themselves,
+   * and showing it to the proposer there would let them accept their own
+   * proposal on the partner's behalf.
+   */
+  const partnerLinkToSend =
+    me === "a" && view.swap.openedBy === "proposer" && view.swap.status !== "cancelled"
+      ? (view.access.find((a) => a.side === "b")?.token ?? null)
+      : null;
+  const unanswered = view.swap.status === "draft" || view.swap.status === "proposed";
   const sheet = (
     <DealSheet
       title={view.swap.title}
@@ -83,7 +101,14 @@ export default async function SwapLinkPage({ params, searchParams }: Props) {
               <RespondForm token={view.token} />
             </Intro>
           ) : (
-            <Intro title={`Waiting on ${theirParty.name}`} body="We sent them the deal sheet. You'll hear from us when they answer.">
+            <Intro
+              title={`Waiting on ${theirParty.name}`}
+              body={
+                partnerLinkToSend
+                  ? "Send them the link below. Nothing happens until they open it."
+                  : "They have the deal sheet. You'll hear from us when they answer."
+              }
+            >
               {sheet}
             </Intro>
           )
@@ -100,7 +125,11 @@ export default async function SwapLinkPage({ params, searchParams }: Props) {
           >
             {view.responses[0]?.message ? (
               <blockquote className="rounded-lg border border-line bg-white px-5 py-4 text-[15px] leading-relaxed">
-                <p className="text-[13px] text-muted">What {view.partyB.name} suggested</p>
+                {/* Always the partner's words, so on the partner's own screen
+                    this read "What <your own company> suggested". */}
+                <p className="text-[13px] text-muted">
+                  {me === "b" ? "What you suggested" : `What ${view.partyB.name} suggested`}
+                </p>
                 <p className="mt-1 whitespace-pre-line">{view.responses[0].message}</p>
               </blockquote>
             ) : null}
@@ -109,18 +138,66 @@ export default async function SwapLinkPage({ params, searchParams }: Props) {
         ) : null}
 
         {view.swap.status === "accepted" || view.swap.status === "completed" ? (
-          <SwapRoom view={view} me={me} them={them} myName={myParty.name} theirName={theirParty.name} />
+          <SwapRoom
+            view={view}
+            me={me}
+            them={them}
+            myName={myParty.name}
+            theirName={theirParty.name}
+            myEmail={myParty.email}
+          />
         ) : null}
 
         {view.swap.status === "declined" || view.swap.status === "cancelled" ? (
-          <Intro title="This swap is closed" body="Nothing else is needed from you. Thanks for your time.">
+          <Intro
+            title="This swap is closed"
+            body={
+              view.swap.status === "declined" && me === "a"
+                ? `${theirParty.name} declined this one. Nothing else is needed from you.`
+                : "Nothing else is needed from you. Thanks for your time."
+            }
+          >
+            {/* The partner's own words, which used to be collected, stored and
+                never shown. Declining with a "but how about November" in the
+                box is the most common real answer, and it was being dropped. */}
+            {view.swap.status === "declined" && view.responses[0]?.message ? (
+              <blockquote className="rounded-lg border border-line bg-white px-5 py-4 text-[15px] leading-relaxed">
+                <p className="text-[13px] text-muted">
+                  {me === "b" ? "What you said" : `What ${view.partyB.name} said`}
+                </p>
+                <p className="mt-1 whitespace-pre-line">{view.responses[0].message}</p>
+              </blockquote>
+            ) : null}
             {sheet}
           </Intro>
         ) : null}
 
+        {partnerLinkToSend && unanswered ? <SendToPartner name={theirParty.name} token={partnerLinkToSend} /> : null}
+
         <RunYourOwn token={view.token} />
       </main>
     </div>
+  );
+}
+
+/**
+ * The proposer's copy of the partner's link.
+ *
+ * Nothing is emailed when a swap is opened from the public form, so until this
+ * link reaches the partner the swap does not exist as far as they know.
+ */
+function SendToPartner({ name, token }: { name: string; token: string }) {
+  return (
+    <aside className="rounded-xl border border-spark/40 bg-white px-6 py-6">
+      <h2 className="text-xl font-semibold">Send this link to {name}</h2>
+      <p className="mt-2 max-w-prose text-muted">
+        It is the whole deal sheet, and it is how they accept, suggest changes, or decline. No account needed. Keep
+        this page for when you need the link again.
+      </p>
+      <div className="mt-4">
+        <CopyLink url={`${appUrl()}/d/${token}`} />
+      </div>
+    </aside>
   );
 }
 
@@ -195,6 +272,30 @@ function RespondForm({ token }: { token: string }) {
   );
 }
 
+/**
+ * Offered to whichever side has no address on file, which is the proposer on
+ * every swap (nothing ever asks them) and the partner whenever they left the
+ * field blank. Without an address this swap runs to its deadlines in silence.
+ */
+function ReminderForm({ token }: { token: string }) {
+  return (
+    <form action={setEmailAction} className="rounded-xl border border-line bg-white p-5 sm:p-6">
+      <h2 className="text-xl font-semibold">Want reminders?</h2>
+      <p className="mt-2 max-w-prose text-muted">
+        We&apos;ll email you before each deadline on this swap, and once if one passes. Nothing else, and it
+        isn&apos;t shared.
+      </p>
+      <div className="mt-4 flex flex-wrap items-end gap-3">
+        <Field label="Your email">
+          <input name="email" type="email" required autoComplete="email" className="field max-w-xs" />
+        </Field>
+        <Button type="submit">Remind me</Button>
+      </div>
+      <input type="hidden" name="token" value={token} />
+    </form>
+  );
+}
+
 const DECISIONS = [
   { value: "accept", label: "Accept the swap", hint: "Both sides are held to the dates above." },
   { value: "counter", label: "Suggest changes", hint: "Say what you'd change and it goes back for a rework." },
@@ -207,12 +308,14 @@ function SwapRoom({
   them,
   myName,
   theirName,
+  myEmail,
 }: {
   view: SideView;
   me: Side;
   them: Side;
   myName: string;
   theirName: string;
+  myEmail: string | null;
 }) {
   const now = new Date();
   const mine = view.commitments.filter((c) => c.side === me);
@@ -230,6 +333,8 @@ function SwapRoom({
             : `You and ${theirName} have agreed. Deliver your part by the dates below, and mark it delivered with a link that shows it.`}
         </p>
       </div>
+
+      {!myEmail && !done ? <ReminderForm token={view.token} /> : null}
 
       <section aria-labelledby="mine">
         <h2 id="mine" className="mb-3 text-xl font-semibold">

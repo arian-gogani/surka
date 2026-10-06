@@ -14,6 +14,7 @@ import {
   trackingLinks,
   type Commitment,
   type CommitmentStatus,
+  type OpenedBy,
   type Party,
   type ResponseRow,
   type Result,
@@ -24,6 +25,7 @@ import {
   type SwapStatus,
   type TrackingLink,
 } from "@/db/schema";
+import { contactEmail } from "../env";
 import { SurkaError } from "../errors";
 import { newAccessToken, newTrackingCode } from "../ids";
 import { type CheckedCommitment, computeRecord, type TrackRecord } from "../reputation";
@@ -41,6 +43,7 @@ import {
   partyInput,
   proofInput,
   responseInput,
+  sideEmailInput,
   resultInput,
   swapInput,
   trackingLinkInput,
@@ -195,7 +198,11 @@ export interface CreatedSwap {
 export async function createSwap(
   db: Db,
   input: unknown,
-  { status = "draft" as Extract<SwapStatus, "draft" | "proposed">, now = new Date() } = {},
+  {
+    status = "draft" as Extract<SwapStatus, "draft" | "proposed">,
+    openedBy = "operator" as OpenedBy,
+    now = new Date(),
+  } = {},
 ): Promise<CreatedSwap> {
   const values = parse(swapInput, input);
   const found = await db
@@ -213,6 +220,7 @@ export async function createSwap(
         partyBId: values.partyBId,
         notes: values.notes,
         status,
+        openedBy,
         ...(status === "proposed" ? { proposedAt: now } : {}),
       })
       .returning();
@@ -391,15 +399,34 @@ export async function respond(db: Db, token: string, input: unknown, now = new D
       email: values.email,
     });
     await moveSwap(tx, swap, next, now);
+    // The partner typing their address into their own deal sheet is the most
+    // authoritative source there is. This used to write only where the column
+    // was still null, so if the operator had guessed an address when creating
+    // the business, the partner's real one was silently discarded and every
+    // reminder went to the guess.
     if (values.email) {
-      await tx
-        .update(parties)
-        .set({ email: values.email })
-        .where(and(eq(parties.id, swap.partyBId), sql`${parties.email} is null`));
+      await tx.update(parties).set({ email: values.email }).where(eq(parties.id, swap.partyBId));
     }
     await logEvent(tx, swap.id, values.decision, { side: access.side, detail: values.message ?? undefined });
   });
   return next;
+}
+
+/**
+ * A link holder sets the address reminders go to for their own side.
+ *
+ * Reminders are the product, and they only fire for a side with an address on
+ * file. The partner is asked once, inside the accept form, and the proposer is
+ * never asked at all, so without this a swap could run its whole length with
+ * nobody being nudged and no way to turn that on.
+ */
+export async function setSideEmail(db: Db, token: string, input: unknown): Promise<void> {
+  const { email } = parse(sideEmailInput, input);
+  const access = await requireAccess(db, token);
+  const swap = await requireSwap(db, access.swapId);
+  const partyId = access.side === "a" ? swap.partyAId : swap.partyBId;
+  await db.update(parties).set({ email }).where(eq(parties.id, partyId));
+  await logEvent(db, swap.id, "email_set", { side: access.side });
 }
 
 /** A side marks its own commitment delivered, with a link that proves it. */
@@ -427,7 +454,10 @@ export async function markDelivered(
     throw new SurkaError("You can only mark your own side's commitments as delivered.", "not_allowed");
   }
   if (!canMoveCommitment(commitment.status, "delivered")) {
-    throw new SurkaError("This one has already been checked.", "conflict");
+    throw new SurkaError(
+      `This one has already been checked as ${commitment.status}. Email ${contactEmail()} if that was wrong.`,
+      "conflict",
+    );
   }
   // Guard on the status we read. A partner clicking Mark delivered at the same
   // moment the operator clicks Kept would otherwise overwrite the check: the
@@ -435,10 +465,18 @@ export async function markDelivered(
   // have completed, and the side that actually delivered loses the credit.
   const [changed] = await db
     .update(commitments)
-    .set({ status: "delivered", proofUrl, deliveredAt: now })
+    .set({
+      status: "delivered",
+      proofUrl,
+      // Keep the first delivery time. Re-pasting a corrected proof link should
+      // not make a commitment delivered on time look late, or the reverse.
+      deliveredAt: commitment.deliveredAt ?? now,
+    })
     .where(and(eq(commitments.id, commitment.id), eq(commitments.status, commitment.status)))
     .returning({ id: commitments.id });
-  if (!changed) throw new SurkaError("This one has already been checked.", "conflict");
+  if (!changed) {
+    throw new SurkaError("Someone else just changed this one. Reload the page and try again.", "conflict");
+  }
   await logEvent(db, swap.id, "delivered", { side: access.side, detail: commitment.description });
 }
 

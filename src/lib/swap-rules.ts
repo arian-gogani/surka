@@ -66,7 +66,11 @@ export function statusAfterDecision(decision: Decision): SwapStatus {
  */
 const COMMITMENT_TRANSITIONS: Record<CommitmentStatus, readonly CommitmentStatus[]> = {
   pending: ["delivered", "kept", "missed"],
-  delivered: ["kept", "missed", "pending"],
+  // Delivering twice replaces the proof link rather than failing. A partner who
+  // pasted the wrong URL used to be told "This one has already been checked",
+  // which was both wrong and the end of the road: nothing on their page could
+  // correct it, and the operator would check the broken link and record a miss.
+  delivered: ["delivered", "kept", "missed", "pending"],
   kept: ["pending"],
   missed: ["pending"],
 };

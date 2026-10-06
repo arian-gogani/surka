@@ -18,6 +18,8 @@ import {
   markProposed,
   partyRecord,
   partyRecords,
+  setSideEmail,
+  updateParty,
   partyForToken,
   recordClick,
   replaceCommitments,
@@ -169,6 +171,30 @@ describe("delivery and checking", () => {
     return { ...seeded, mine, theirs };
   }
 
+  it("takes the partner's own address over whatever the operator guessed", async () => {
+    // Reminders are the product. This used to write only where the column was
+    // still null, so an operator's guess beat the partner's real address.
+    const seeded = await seedSwap();
+    await updateParty(db, seeded.newsletter.id, {
+      name: "Practice Manager Weekly",
+      kind: "newsletter",
+      email: "guess@pmweekly.example",
+    });
+    await markProposed(db, seeded.swap.id, NOW);
+    await respond(db, seeded.tokens.b, { decision: "accept", email: "real@pmweekly.example" }, NOW);
+    const view = await getSwapForToken(db, seeded.tokens.b, NOW);
+    expect(view.partyB.email).toBe("real@pmweekly.example");
+  });
+
+  it("lets either side turn reminders on later, for its own side only", async () => {
+    const { tokens } = await acceptedSwap();
+    await setSideEmail(db, tokens.a, { email: "Dana@Clinicscheduler.example" });
+    const view = await getSwapForToken(db, tokens.a, NOW);
+    // Addresses are lowercased on the way in, so a reminder is not sent twice.
+    expect(view.partyA.email).toBe("dana@clinicscheduler.example");
+    await expectSurka(setSideEmail(db, tokens.a, { email: "not an address" }), "invalid");
+  });
+
   it("lets a side deliver only its own commitments, with proof", async () => {
     const { tokens, mine, theirs } = await acceptedSwap();
     await expectSurka(
@@ -179,6 +205,25 @@ describe("delivery and checking", () => {
     await markDelivered(db, tokens.a, mine.id, { proofUrl: "https://clinicscheduler.example/promo" }, NOW);
     const view = await getSwapForToken(db, tokens.a, NOW);
     expect(view.commitments.find((c) => c.id === mine.id)?.status).toBe("delivered");
+  });
+
+  it("replaces a wrong proof link without moving the delivery time", async () => {
+    const { tokens, mine } = await acceptedSwap();
+    await markDelivered(db, tokens.a, mine.id, { proofUrl: "https://clinicscheduler.example/wrong" }, NOW);
+    const later = new Date(NOW.getTime() + 2 * 86_400_000);
+    await markDelivered(db, tokens.a, mine.id, { proofUrl: "https://clinicscheduler.example/right" }, later);
+
+    const after = (await getSwapForToken(db, tokens.a, later)).commitments.find((c) => c.id === mine.id)!;
+    expect(after.proofUrl).toBe("https://clinicscheduler.example/right");
+    // Correcting the link must not make an on-time delivery look late.
+    expect(after.deliveredAt?.getTime()).toBe(NOW.getTime());
+
+    // Once checked it is the operator's to reopen, and the message says so.
+    await verifyCommitment(db, mine.id, "kept", later);
+    await expectSurka(
+      markDelivered(db, tokens.a, mine.id, { proofUrl: "https://clinicscheduler.example/third" }, later),
+      "conflict",
+    );
   });
 
   it("completes the swap when every commitment is checked, and builds records", async () => {

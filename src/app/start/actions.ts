@@ -74,7 +74,9 @@ export async function startSwapAction(_previous: StartState, formData: FormData)
         partyBId: partner.id,
         commitments: terms,
       },
-      { status: "proposed" },
+      // No email goes out, so the proposer is the one who has to deliver the
+      // partner's link. Their own page shows it to them because of this.
+      { status: "proposed", openedBy: "proposer" },
     );
     tokens = created.tokens;
   } catch (error) {

@@ -83,6 +83,13 @@ describe("swap status rules", () => {
     expect(canMoveCommitment("pending", "delivered")).toBe(true);
     expect(canMoveCommitment("delivered", "kept")).toBe(true);
   });
+
+  it("lets a delivery be re-sent so a wrong proof link can be replaced", () => {
+    expect(canMoveCommitment("delivered", "delivered")).toBe(true);
+    // Still not after a verdict: that is the operator's to reopen.
+    expect(canMoveCommitment("kept", "delivered")).toBe(false);
+    expect(canMoveCommitment("missed", "delivered")).toBe(false);
+  });
 });
 
 describe("dates", () => {

@@ -76,6 +76,9 @@ export const swapInput = z
   );
 export type SwapInput = z.input<typeof swapInput>;
 
+/** Just the address, for the reminders form on an agreed swap. */
+export const sideEmailInput = z.object({ email });
+
 export const responseInput = z
   .object({
     decision: z.enum(["accept", "counter", "decline"]),

@@ -1,0 +1,1 @@
+ALTER TABLE "swaps" ADD COLUMN "opened_by" text DEFAULT 'operator' NOT NULL;
