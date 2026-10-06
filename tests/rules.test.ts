@@ -1,8 +1,10 @@
+import type { z } from "zod";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { addDays, daysUntil, isValidDateOnly } from "@/lib/dates";
 import { appUrl } from "@/lib/env";
 import { computeRecord, describeRecord, HALF_LIFE_DAYS } from "@/lib/reputation";
 import { possessive } from "@/lib/present";
+import { commitmentInput, firstIssue, partyInput, resultInput } from "@/lib/validation";
 import { dueReminderKind, reminderSubject } from "@/lib/reminders";
 import {
   allResolved,
@@ -206,5 +208,39 @@ describe("reminder subjects match the body", () => {
 
   it("ignores the day count when overdue", () => {
     expect(reminderSubject("overdue", "A swap", DUE, new Date("2026-10-09T15:00:00Z"))).toContain("Overdue");
+  });
+});
+
+describe("validation speaks to the person filling the form", () => {
+  const messageFor = (schema: z.ZodType, input: unknown): string => {
+    const parsed = schema.safeParse(input);
+    if (parsed.success) throw new Error("expected this input to be rejected");
+    return firstIssue(parsed.error);
+  };
+
+  it("never leaks Zod's internal wording", () => {
+    const cases: [z.ZodType, unknown][] = [
+      [resultInput, { side: "a", metric: "installs", value: 20_000_000 }],
+      [resultInput, { side: "a", metric: "installs", value: -1 }],
+      [resultInput, { side: "a", metric: "installs", value: "not a number" }],
+      [partyInput, { name: "x".repeat(200) }],
+      [commitmentInput, { side: "a", description: "y".repeat(600), dueDate: "2026-10-05" }],
+    ];
+    for (const [schema, input] of cases) {
+      const message = messageFor(schema, input);
+      // "Too big: expected string to have <=500 characters" and friends.
+      expect(message).not.toMatch(/Too (big|small)|expected (string|number) to/i);
+      expect(message[0]).toBe(message[0]?.toUpperCase());
+    }
+  });
+
+  it("rejects a blank result instead of storing zero", () => {
+    // formData.get returns null for an absent field, and Number(null) is 0.
+    expect(messageFor(resultInput, { side: "a", metric: "installs", value: null })).toContain("number");
+    expect(messageFor(resultInput, { side: "a", metric: "installs", value: "  " })).toContain("number");
+  });
+
+  it("still accepts a real result", () => {
+    expect(resultInput.safeParse({ side: "a", metric: "installs", value: "15" }).success).toBe(true);
   });
 });
