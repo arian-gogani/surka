@@ -439,3 +439,80 @@ describe("a track record survives into the next swap", () => {
     expect(shown.records.a.kept).toBeGreaterThan(0);
   });
 });
+
+/**
+ * Both sides hold private links and act independently. Every guard in this
+ * service used to read a status, await, then write unconditionally, so two
+ * overlapping requests both passed. These run on one connection: the event
+ * loop is enough, no second instance required.
+ */
+describe("two people acting at once", () => {
+  it("refuses a second answer that races the first", async () => {
+    const { swap, tokens } = await seedSwap();
+    await markProposed(db, swap.id, NOW);
+
+    const both = await Promise.allSettled([
+      respond(db, tokens.b, { decision: "accept" }, NOW),
+      respond(db, tokens.b, { decision: "decline" }, NOW),
+    ]);
+    expect(both.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+
+    // Exactly one outcome stuck, and it is not a swap stamped both ways.
+    const detail = await getSwapDetail(db, swap.id);
+    expect(["accepted", "declined"]).toContain(detail.swap.status);
+    if (detail.swap.status === "accepted") expect(detail.swap.closedAt).toBeNull();
+    else expect(detail.swap.acceptedAt).toBeNull();
+  });
+
+  it("refuses a cancel that races the partner's acceptance", async () => {
+    const { swap, tokens } = await seedSwap();
+    await markProposed(db, swap.id, NOW);
+
+    const both = await Promise.allSettled([
+      respond(db, tokens.b, { decision: "accept" }, NOW),
+      cancelSwap(db, swap.id, "changed my mind", NOW),
+    ]);
+    expect(both.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+
+    const detail = await getSwapDetail(db, swap.id);
+    // Previously this could end up accepted with closedAt set: live and closed.
+    expect(detail.swap.acceptedAt === null || detail.swap.closedAt === null).toBe(true);
+  });
+
+  it("records one outcome when Kept and Missed are both submitted", async () => {
+    const { swap, tokens } = await seedSwap();
+    await markProposed(db, swap.id, NOW);
+    await respond(db, tokens.b, { decision: "accept" }, NOW);
+    const view = await getSwapForToken(db, tokens.a, NOW);
+    const mine = view.commitments.find((c) => c.side === "a");
+    if (!mine) throw new Error("expected a commitment on side a");
+
+    const both = await Promise.allSettled([
+      verifyCommitment(db, mine.id, "kept", NOW),
+      verifyCommitment(db, mine.id, "missed", NOW),
+    ]);
+    expect(both.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+  });
+
+  it("does not let a delivery overwrite a check that already landed", async () => {
+    const { swap, tokens } = await seedSwap();
+    await markProposed(db, swap.id, NOW);
+    await respond(db, tokens.b, { decision: "accept" }, NOW);
+    const view = await getSwapForToken(db, tokens.a, NOW);
+    const mine = view.commitments.find((c) => c.side === "a");
+    if (!mine) throw new Error("expected a commitment on side a");
+
+    const both = await Promise.allSettled([
+      verifyCommitment(db, mine.id, "kept", NOW),
+      markDelivered(db, tokens.a, mine.id, { proofUrl: "https://example.com/proof" }, NOW),
+    ]);
+    expect(both.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+
+    // The old bug left status "delivered" with verifiedAt set, which made the
+    // commitment permanently uncheckable and erased the deliverer's credit.
+    const after = await getSwapDetail(db, swap.id);
+    const row = after.commitments.find((c) => c.id === mine.id);
+    if (!row) throw new Error("expected the commitment to still exist");
+    expect(row.status === "delivered" && row.verifiedAt !== null).toBe(false);
+  });
+});

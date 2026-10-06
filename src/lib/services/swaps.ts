@@ -204,6 +204,16 @@ export async function replaceCommitments(db: Db, swapId: string, input: unknown[
   });
 }
 
+/**
+ * Moves a swap, refusing if anyone changed it since it was read.
+ *
+ * Both sides hold private links and act independently, so the gap between
+ * reading a status and writing the next one is a real window, not a theoretical
+ * one. Without the status in the WHERE clause, a partner who taps Accept and
+ * then Decline lands both: each request reads "proposed", each passes the
+ * transition check, and the row ends up declined but stamped as accepted.
+ * Making the guard part of the write closes that for every caller at once.
+ */
 async function moveSwap(db: Db, swap: Swap, to: SwapStatus, now: Date): Promise<void> {
   assertTransition(swap.status, to);
   const stamps: Partial<Pick<Swap, "proposedAt" | "acceptedAt" | "completedAt" | "closedAt">> = {};
@@ -211,7 +221,14 @@ async function moveSwap(db: Db, swap: Swap, to: SwapStatus, now: Date): Promise<
   if (to === "accepted") stamps.acceptedAt = now;
   if (to === "completed") stamps.completedAt = now;
   if (to === "declined" || to === "cancelled") stamps.closedAt = now;
-  await db.update(swaps).set({ status: to, ...stamps }).where(eq(swaps.id, swap.id));
+  const [moved] = await db
+    .update(swaps)
+    .set({ status: to, ...stamps })
+    .where(and(eq(swaps.id, swap.id), eq(swaps.status, swap.status)))
+    .returning({ id: swaps.id });
+  if (!moved) {
+    throw new SurkaError("Someone else just changed this swap. Reload the page and try again.", "conflict");
+  }
 }
 
 /** The operator has sent (or re-sent) the deal sheet to the partner. */
@@ -364,10 +381,16 @@ export async function markDelivered(
   if (!canMoveCommitment(commitment.status, "delivered")) {
     throw new SurkaError("This one has already been checked.", "conflict");
   }
-  await db
+  // Guard on the status we read. A partner clicking Mark delivered at the same
+  // moment the operator clicks Kept would otherwise overwrite the check: the
+  // row ends up "delivered" with verifiedAt already set, the swap may already
+  // have completed, and the side that actually delivered loses the credit.
+  const [changed] = await db
     .update(commitments)
     .set({ status: "delivered", proofUrl, deliveredAt: now })
-    .where(eq(commitments.id, commitment.id));
+    .where(and(eq(commitments.id, commitment.id), eq(commitments.status, commitment.status)))
+    .returning({ id: commitments.id });
+  if (!changed) throw new SurkaError("This one has already been checked.", "conflict");
   await logEvent(db, swap.id, "delivered", { side: access.side, detail: commitment.description });
 }
 
@@ -393,10 +416,16 @@ export async function verifyCommitment(
   }
 
   return db.transaction(async (tx) => {
-    await tx
+    // Same compare-and-set as moveSwap: Kept and Missed sit 8px apart with no
+    // pending state, so a slow page turns one intended click into two writes
+    // and the last one wins. Here that would record the opposite outcome while
+    // telling the operator the first one succeeded.
+    const [changed] = await tx
       .update(commitments)
       .set({ status: outcome, verifiedAt: outcome === "pending" ? null : now })
-      .where(eq(commitments.id, commitment.id));
+      .where(and(eq(commitments.id, commitment.id), eq(commitments.status, commitment.status)))
+      .returning({ id: commitments.id });
+    if (!changed) throw new SurkaError("That commitment has already been checked.", "conflict");
     await logEvent(tx, swap.id, outcome === "pending" ? "reopened" : outcome, {
       side: commitment.side,
       detail: commitment.description,
