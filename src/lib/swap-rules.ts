@@ -33,9 +33,15 @@ export function isFinal(status: SwapStatus): boolean {
   return SWAP_TRANSITIONS[status].length === 0;
 }
 
-/** Terms can only change before both sides have agreed. */
+/**
+ * Terms can change until both sides have agreed.
+ *
+ * Proposed counts: nothing is agreed yet, and swaps created from the public
+ * form arrive already proposed, so excluding it left the operator unable to fix
+ * a typo or a wrong date on anything a stranger submitted.
+ */
 export function termsEditable(status: SwapStatus): boolean {
-  return status === "draft" || status === "countered";
+  return status === "draft" || status === "proposed" || status === "countered";
 }
 
 export function statusAfterDecision(decision: Decision): SwapStatus {

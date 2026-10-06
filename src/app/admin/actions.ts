@@ -114,18 +114,24 @@ export async function createSwapAction(formData: FormData) {
   go(`/admin/swaps/${swapId}`, { ok: "Swap created. Check the terms, then send the partner their link." });
 }
 
-async function onSwap(formData: FormData, run: (swapId: string) => Promise<unknown>, success: string) {
+/** `success` may read the run's result, so an action can report what it actually did. */
+async function onSwap<T>(
+  formData: FormData,
+  run: (swapId: string) => Promise<T>,
+  success: string | ((result: T) => string),
+) {
   await requireOperator();
   const swapId = String(formData.get("swapId") ?? "");
   // Without a swap id both branches below redirect to /admin/swaps/, which is
   // a 404, so the error message is lost entirely.
   if (!swapId) go("/admin", { error: "That swap link was incomplete. Open the swap and try again." });
+  let result: T;
   try {
-    await run(swapId);
+    result = await run(swapId);
   } catch (error) {
     go(`/admin/swaps/${swapId}`, { error: messageFor(error) });
   }
-  go(`/admin/swaps/${swapId}`, { ok: success });
+  go(`/admin/swaps/${swapId}`, { ok: typeof success === "function" ? success(result) : success });
 }
 
 export async function markProposedAction(formData: FormData) {
@@ -159,11 +165,15 @@ export async function verifyAction(formData: FormData) {
   }
   await onSwap(
     formData,
-    async () => {
-      const result = await verifyCommitment(await getDb(), String(formData.get("commitmentId") ?? ""), outcome);
-      return result;
+    async () => verifyCommitment(await getDb(), String(formData.get("commitmentId") ?? ""), outcome),
+    // The last check is the moment the whole pilot is working toward, and it
+    // used to report the same "Marked kept." as the first one.
+    ({ swapCompleted }) => {
+      if (outcome === "pending") {
+        return swapCompleted ? "Reopened." : "Reopened. This swap is back in progress.";
+      }
+      return swapCompleted ? `Marked ${outcome}. That was the last check, so the swap is complete.` : `Marked ${outcome}.`;
     },
-    outcome === "pending" ? "Reopened." : `Marked ${outcome}.`,
   );
 }
 

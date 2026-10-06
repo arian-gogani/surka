@@ -100,17 +100,19 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
                     <StatusPill status={swap.status} />
                   </td>
                   <td className="px-5 py-4 text-[14px]">
-                    {nextDue && swap.status === "accepted" ? (
+                    {/* Checks first: a pending due date used to win, so the one
+                        thing actually waiting on the operator was invisible. */}
+                    {awaitingCheck > 0 ? (
+                      <span className="font-medium text-spark-deep">
+                        {awaitingCheck === 1 ? "1 delivery to check" : `${awaitingCheck} deliveries to check`}
+                      </span>
+                    ) : nextDue && swap.status === "accepted" ? (
                       <>
                         <span className="num">{relativeDue(nextDue.dueDate, now)}</span>
                         <p className="max-w-[28ch] truncate text-[13px] text-muted">
                           {nextDue.side === "a" ? partyAName : partyBName}: {nextDue.description}
                         </p>
                       </>
-                    ) : awaitingCheck > 0 ? (
-                      <span className="font-medium text-spark-deep">
-                        {awaitingCheck === 1 ? "1 delivery to check" : `${awaitingCheck} deliveries to check`}
-                      </span>
                     ) : (
                       <span className="text-muted">Nothing due</span>
                     )}

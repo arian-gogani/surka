@@ -12,7 +12,7 @@ import { appUrl } from "@/lib/env";
 import { SurkaError } from "@/lib/errors";
 import { getSwapDetail, type SwapDetail } from "@/lib/services/swaps";
 import { possessive } from "@/lib/present";
-import { isFinal, isResolved, termsEditable } from "@/lib/swap-rules";
+import { canTransition, isFinal, isResolved, termsEditable } from "@/lib/swap-rules";
 import {
   addLinkAction,
   addResultAction,
@@ -180,7 +180,10 @@ export default async function SwapAdminPage({
         </ul>
 
         {termsEditable(status) ? (
-          <details className="rounded-xl border border-line bg-white p-5">
+          // Open on a counter: the banner's only button re-sends, and sending
+          // moves countered to proposed, so a collapsed rework form was one
+          // click away from the partner receiving the identical deal sheet.
+          <details open={status === "countered"} className="rounded-xl border border-line bg-white p-5">
             <summary className="cursor-pointer font-medium">Rework the terms</summary>
             <form action={replaceTermsAction} className="mt-4 space-y-4">
               <TermsFields
@@ -329,7 +332,9 @@ export default async function SwapAdminPage({
         </section>
       </div>
 
-      {!isFinal(status) ? (
+      {/* Not !isFinal: completed can now move to accepted, which made that
+          check true and offered a cancel that always failed. */}
+      {canTransition(status, "cancelled") ? (
         <section className="rounded-xl border border-line bg-white p-5" aria-labelledby="cancel">
           <h2 id="cancel" className="font-semibold">
             Cancel this swap

@@ -11,6 +11,7 @@ import {
   canMoveCommitment,
   canTransition,
   hasBothSides,
+  isFinal,
   statusAfterDecision,
   termsEditable,
 } from "@/lib/swap-rules";
@@ -61,10 +62,9 @@ describe("swap status rules", () => {
     expect(statusAfterDecision("decline")).toBe("declined");
   });
 
-  it("locks terms once agreed", () => {
+  it("locks terms once agreed, and not before", () => {
     expect(termsEditable("draft")).toBe(true);
     expect(termsEditable("countered")).toBe(true);
-    expect(termsEditable("proposed")).toBe(false);
     expect(termsEditable("accepted")).toBe(false);
   });
 
@@ -242,5 +242,20 @@ describe("validation speaks to the person filling the form", () => {
 
   it("still accepts a real result", () => {
     expect(resultInput.safeParse({ side: "a", metric: "installs", value: "15" }).success).toBe(true);
+  });
+});
+
+describe("terms stay editable until both sides agree", () => {
+  it("includes proposed, since swaps from the public form arrive that way", () => {
+    expect(termsEditable("proposed")).toBe(true);
+    expect(termsEditable("accepted")).toBe(false);
+    expect(termsEditable("completed")).toBe(false);
+  });
+
+  it("does not offer a cancel on a completed swap", () => {
+    // isFinal("completed") is false now that it can reopen, so the dashboard
+    // must gate the cancel form on the transition rather than on finality.
+    expect(isFinal("completed")).toBe(false);
+    expect(canTransition("completed", "cancelled")).toBe(false);
   });
 });
