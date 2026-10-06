@@ -18,6 +18,7 @@ import {
   replaceCommitments,
   verifyCommitment,
 } from "@/lib/services/swaps";
+import type { NewSwapState } from "./swaps/new/state";
 
 function go(path: string, params: Record<string, string> = {}): never {
   const query = new URLSearchParams(params).toString();
@@ -96,8 +97,16 @@ export async function createPartyAction(formData: FormData) {
   go("/admin/parties", { ok: "Business added." });
 }
 
-export async function createSwapAction(formData: FormData) {
+/**
+ * Returns state rather than redirecting on failure.
+ *
+ * A rejected swap used to bounce back to an empty form, so "Both sides must
+ * give something" cost the operator the title, both businesses, every
+ * commitment row and the notes. There are up to twelve rows to retype.
+ */
+export async function createSwapAction(_prev: NewSwapState, formData: FormData): Promise<NewSwapState> {
   await requireOperator();
+  const rows = readCommitments(formData);
   let swapId: string;
   try {
     const { swap } = await createSwap(await getDb(), {
@@ -105,11 +114,22 @@ export async function createSwapAction(formData: FormData) {
       partyAId: formData.get("partyAId"),
       partyBId: formData.get("partyBId"),
       notes: formData.get("notes"),
-      commitments: readCommitments(formData),
+      commitments: rows,
     });
     swapId = swap.id;
   } catch (error) {
-    go("/admin/swaps/new", { error: messageFor(error) });
+    return {
+      error: messageFor(error),
+      values: {
+        title: String(formData.get("title") ?? ""),
+        partyAId: String(formData.get("partyAId") ?? ""),
+        partyBId: String(formData.get("partyBId") ?? ""),
+        notes: String(formData.get("notes") ?? ""),
+      },
+      // readCommitments drops blank lines, which is what we want to show back:
+      // the rows with something in them, plus the spare lines TermsFields adds.
+      rows: rows.map((r) => ({ side: r.side === "b" ? "b" : "a", description: r.description, dueDate: r.dueDate })),
+    };
   }
   go(`/admin/swaps/${swapId}`, { ok: "Swap created. Check the terms, then send the partner their link." });
 }

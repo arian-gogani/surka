@@ -33,20 +33,36 @@ function check(condition, label) {
   }
 }
 
-/** The form containing `marker`: its action field and hidden inputs. */
+function unescapeHtml(value) {
+  return value
+    .replaceAll("&quot;", '"')
+    .replaceAll("&#x27;", "'")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&amp;", "&");
+}
+
+/**
+ * Every hidden input of the form containing `marker`, which is what a browser
+ * with no JavaScript would send back.
+ *
+ * The $ACTION fields are included deliberately. A plain server-action form
+ * carries one $ACTION_ID_<hash>; a useActionState form instead carries
+ * $ACTION_REF_1 plus $ACTION_1:0, $ACTION_1:1 and $ACTION_KEY, whose values
+ * are HTML-escaped JSON. Keeping only the first shape meant a form converted
+ * to useActionState silently stopped being covered here.
+ */
 function findForm(html, marker) {
   for (const chunk of html.split("<form").slice(1)) {
     const body = chunk.split("</form>")[0];
     if (!body.includes(marker)) continue;
-    const action = body.match(/name="(\$ACTION_ID_[^"]+)"/);
-    if (!action) continue;
     const hidden = {};
     for (const input of body.matchAll(/<input[^>]*type="hidden"[^>]*>/g)) {
       const name = input[0].match(/name="([^"]+)"/)?.[1];
-      const value = input[0].match(/value="([^"]*)"/)?.[1] ?? "";
-      if (name && !name.startsWith("$ACTION")) hidden[name] = value;
+      if (name) hidden[name] = unescapeHtml(input[0].match(/value="([^"]*)"/)?.[1] ?? "");
     }
-    return { actionField: action[1], hidden };
+    if (!Object.keys(hidden).some((name) => name.startsWith("$ACTION"))) continue;
+    return { hidden };
   }
   throw new Error(`No form containing ${marker}`);
 }
@@ -62,7 +78,6 @@ async function submit(pathname, marker, fields) {
   const page = await get(pathname);
   const form = findForm(page.html, marker);
   const body = new FormData();
-  body.set(form.actionField, "");
   for (const [key, value] of Object.entries({ ...form.hidden, ...fields })) body.set(key, value);
   const res = await fetch(BASE + pathname, {
     method: "POST",
@@ -72,7 +87,9 @@ async function submit(pathname, marker, fields) {
   });
   const setCookie = res.headers.get("set-cookie");
   if (setCookie?.startsWith("surka_operator=")) cookie = setCookie.split(";")[0];
-  return { status: res.status, location: res.headers.get("location") ?? "" };
+  // A useActionState form answers a rejected submit with the page itself
+  // rather than a redirect, so the body is the only place the error appears.
+  return { status: res.status, location: res.headers.get("location") ?? "", body: await res.text() };
 }
 
 function query(location, key) {
@@ -129,7 +146,10 @@ async function run() {
     "commitments.0.description": "Feature them",
     "commitments.0.dueDate": due,
   });
-  check(query(oneSided.location, "error") !== null, "a swap where only one side gives is refused");
+  check(
+    oneSided.location === "" && oneSided.body.includes("Both sides need to give something"),
+    "a swap where only one side gives is refused, and says so without a redirect",
+  );
 
   const created = await submit("/admin/swaps/new", 'name="partyAId"', {
     title: "Newsletter feature for an extended trial",
