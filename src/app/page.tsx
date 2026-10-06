@@ -60,7 +60,7 @@ export default function Home() {
               </a>
               <a
                 href="#how"
-                className="inline-flex min-h-11 items-center rounded-md border border-line bg-white px-5 text-[15px] font-medium text-ink hover:border-ink/40"
+                className="inline-flex min-h-11 items-center rounded-md border border-line-strong bg-white px-5 text-[15px] font-medium text-ink hover:border-ink"
               >
                 See how a swap runs
               </a>

@@ -8,9 +8,9 @@ type Variant = "action" | "quiet" | "kept" | "danger";
 const VARIANT: Record<Variant, string> = {
   // Spark is reserved for the one action that moves a swap forward.
   action: "bg-spark text-ink hover:bg-[#ff6d4d] active:bg-[#f04d2a]",
-  quiet: "border border-line bg-white text-ink hover:border-ink/40",
+  quiet: "border border-line-strong bg-white text-ink hover:border-ink",
   kept: "bg-kept text-white hover:bg-kept-deep",
-  danger: "border border-line bg-white text-spark-deep hover:border-spark-deep/50",
+  danger: "border border-line-strong bg-white text-spark-deep hover:border-spark-deep",
 };
 
 const BASE =
