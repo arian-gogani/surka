@@ -40,6 +40,7 @@ import {
 import {
   commitmentInput,
   firstIssue,
+  partyIdentityInput,
   partyInput,
   proofInput,
   responseInput,
@@ -120,6 +121,20 @@ export async function createParty(db: Db, input: unknown): Promise<Party> {
 export async function updateParty(db: Db, partyId: string, input: unknown): Promise<Party> {
   if (!isUuid(partyId)) throw new SurkaError("That business doesn't exist.", "not_found");
   const values = parse(partyInput, input);
+  const [party] = await db.update(parties).set(values).where(eq(parties.id, partyId)).returning();
+  if (!party) throw new SurkaError("That business doesn't exist.", "not_found");
+  return party;
+}
+
+/**
+ * A link holder correcting their own business.
+ *
+ * Only the four fields the business owns about itself. Reusing updateParty
+ * here would null out the operator's own contactName, offers, needs and notes,
+ * because partyInput treats every absent optional field as an explicit null.
+ */
+export async function updatePartyIdentity(db: Db, partyId: string, input: unknown): Promise<Party> {
+  const values = parse(partyIdentityInput, input);
   const [party] = await db.update(parties).set(values).where(eq(parties.id, partyId)).returning();
   if (!party) throw new SurkaError("That business doesn't exist.", "not_found");
   return party;
@@ -579,11 +594,30 @@ export async function recordClick(db: Db, code: string): Promise<string | null> 
   return row?.destinationUrl ?? null;
 }
 
+/**
+ * One figure per side per measure, replaced rather than piled up.
+ *
+ * Reporting was a plain insert with no way back, so typing 5000 where you
+ * meant 500 left both rows on the page with no timestamp and no delete. The
+ * partner saw two contradictory numbers for the same measure and could not
+ * tell which was live. Correcting it is the common case; keeping a running
+ * series of the same measure is not something either side asked for.
+ *
+ * The timeline keeps every submission, so nothing is lost by replacing.
+ */
 export async function addResult(db: Db, swapId: string, input: unknown): Promise<Result> {
   const values = parse(resultInput, input);
   await requireSwap(db, swapId);
-  const [row] = await db.insert(results).values({ ...values, swapId }).returning();
-  if (!row) throw new Error("Insert returned no row");
+  const row = await db.transaction(async (tx) => {
+    await tx
+      .delete(results)
+      .where(
+        and(eq(results.swapId, swapId), eq(results.side, values.side), eq(results.metric, values.metric)),
+      );
+    const [inserted] = await tx.insert(results).values({ ...values, swapId }).returning();
+    if (!inserted) throw new Error("Insert returned no row");
+    return inserted;
+  });
   await logEvent(db, swapId, "result_added", { side: row.side, detail: `${row.value} ${row.metric}` });
   return row;
 }
@@ -591,6 +625,12 @@ export async function addResult(db: Db, swapId: string, input: unknown): Promise
 /** A side reports growth it received. It can only report for itself. */
 export async function reportResult(db: Db, token: string, input: unknown): Promise<Result> {
   const access = await requireAccess(db, token);
+  const swap = await requireSwap(db, access.swapId);
+  // A tab left open on a swap that was since cancelled or declined could still
+  // write a result into it, and nothing on either page would ever show it.
+  if (swap.status !== "accepted" && swap.status !== "completed") {
+    throw new SurkaError("Results open once both sides have agreed to the swap.", "conflict");
+  }
   const raw = typeof input === "object" && input !== null ? input : {};
   return addResult(db, access.swapId, { ...raw, side: access.side });
 }

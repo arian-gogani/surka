@@ -5,8 +5,8 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
 import { messageFor } from "@/lib/errors";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
-import { createParty, createSwap, partyForToken } from "@/lib/services/swaps";
-import { commitmentInput, firstIssue } from "@/lib/validation";
+import { createParty, createSwap, partyForToken, updatePartyIdentity } from "@/lib/services/swaps";
+import { commitmentInput, firstIssue, swapTitle } from "@/lib/validation";
 import { START_FIELDS, type StartField, type StartState } from "./state";
 
 /** Five swaps per address per hour: generous for a real founder, dull for a script. */
@@ -44,6 +44,11 @@ export async function startSwapAction(_previous: StartState, formData: FormData)
     const parsed = commitmentInput.safeParse(term);
     if (!parsed.success) return fail(firstIssue(parsed.error));
   }
+  // The title is checked here too. The browser enforces minLength on the raw
+  // value while the server trims, so a title of three spaces passed the form
+  // and then failed inside createSwap, after both businesses had been written.
+  const title = swapTitle.safeParse(field("title"));
+  if (!title.success) return fail(firstIssue(title.error));
 
   let tokens: { a: string; b: string };
   try {
@@ -51,14 +56,18 @@ export async function startSwapAction(_previous: StartState, formData: FormData)
     // Holding a link from an earlier swap proves which business you are, so
     // carry that same party forward and let the track record accumulate.
     const returning = field("from") ? await partyForToken(db, field("from")) : null;
+    // The "Your side" fields stay editable when a business carries over, so
+    // what is in them has to be saved. They used to be read and discarded, so
+    // a returning founder adding the email they forgot last time, or fixing a
+    // typo in their name, watched both silently vanish.
+    const mine = {
+      name: field("yourName"),
+      kind: field("yourKind") || "app",
+      website: field("yourWebsite") || null,
+      email: field("yourEmail") || null,
+    };
     const [you, partner] = await Promise.all([
-      returning ??
-        createParty(db, {
-          name: field("yourName"),
-          kind: field("yourKind") || "app",
-          website: field("yourWebsite") || null,
-          email: field("yourEmail") || null,
-        }),
+      returning ? updatePartyIdentity(db, returning.id, mine) : createParty(db, mine),
       createParty(db, {
         name: field("partnerName"),
         kind: field("partnerKind") || "other",
@@ -69,7 +78,7 @@ export async function startSwapAction(_previous: StartState, formData: FormData)
     const created = await createSwap(
       db,
       {
-        title: field("title"),
+        title: title.data,
         partyAId: you.id,
         partyBId: partner.id,
         commitments: terms,

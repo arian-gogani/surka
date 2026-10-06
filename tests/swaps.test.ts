@@ -273,10 +273,38 @@ describe("tracking and results", () => {
     expect(view.trackingLinks).toHaveLength(0);
   });
 
-  it("only lets a side report results for itself", async () => {
-    const { tokens } = await seedSwap();
+  it("only lets a side report results for itself, and only on an agreed swap", async () => {
+    const { swap, tokens } = await seedSwap();
+    // A tab left open on a swap that never got agreed used to write a result
+    // into it that no page would ever show.
+    await expectSurka(reportResult(db, tokens.b, { metric: "signups", value: 42 }), "conflict");
+
+    await markProposed(db, swap.id, NOW);
+    await respond(db, tokens.b, { decision: "accept" }, NOW);
     const result = await reportResult(db, tokens.b, { side: "a", metric: "signups", value: 42 });
     expect(result.side).toBe("b");
+  });
+
+  it("replaces a figure for the same measure instead of stacking contradictions", async () => {
+    const { swap, tokens } = await seedSwap();
+    await markProposed(db, swap.id, NOW);
+    await respond(db, tokens.b, { decision: "accept" }, NOW);
+
+    await reportResult(db, tokens.b, { metric: "signups", value: 5000 });
+    await reportResult(db, tokens.b, { metric: "signups", value: 500, note: "Meant 500." });
+    // A different measure is a different figure, not a correction.
+    await reportResult(db, tokens.b, { metric: "clicks", value: 80 });
+
+    const view = await getSwapForToken(db, tokens.b, NOW);
+    expect(view.results.map((r) => [r.metric, r.value])).toEqual(
+      expect.arrayContaining([
+        ["signups", 500],
+        ["clicks", 80],
+      ]),
+    );
+    expect(view.results).toHaveLength(2);
+    // Replacing does not lose the history: the timeline keeps every submission.
+    expect(view.events.filter((e) => e.type === "result_added")).toHaveLength(3);
   });
 });
 

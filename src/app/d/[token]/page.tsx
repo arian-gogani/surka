@@ -396,11 +396,17 @@ function SwapRoom({
           ) : (
             <ul className="mt-4 space-y-2">
               {view.results.map((r) => (
-                <li key={r.id} className="flex items-baseline justify-between gap-4 border-b border-line pb-2 text-[15px]">
-                  <SideTag name={r.side === me ? myName : theirName} side={r.side} />
-                  <span className="num font-medium">
-                    {r.value.toLocaleString("en-US")} {r.metric}
-                  </span>
+                <li key={r.id} className="border-b border-line pb-2 text-[15px]">
+                  <div className="flex items-baseline justify-between gap-4">
+                    <SideTag name={r.side === me ? myName : theirName} side={r.side} />
+                    <span className="num font-medium">
+                      {r.value.toLocaleString("en-US")} {r.metric}
+                    </span>
+                  </div>
+                  {/* The note was collected by the form below, stored, and shown
+                      nowhere, so the one line explaining a surprising number
+                      was invisible to the side reading it. */}
+                  {r.note ? <p className="mt-1 text-[14px] text-muted">{r.note}</p> : null}
                 </li>
               ))}
             </ul>
@@ -408,6 +414,9 @@ function SwapRoom({
         </div>
         <form action={reportResultAction} className="space-y-4 rounded-xl border border-line bg-white p-5">
           <h3 className="font-semibold">Report what you got from it</h3>
+          <p className="text-[14px] text-muted">
+            Reporting the same measure again replaces the figure, so a wrong number is easy to fix.
+          </p>
           <div className="grid grid-cols-[1fr_8rem] gap-3">
             <Field label="Measure">
               <select name="metric" className="field" defaultValue="installs">

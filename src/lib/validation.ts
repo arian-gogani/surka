@@ -55,9 +55,19 @@ export const commitmentInput = z.object({
 });
 export type CommitmentInput = z.input<typeof commitmentInput>;
 
+/** Exported so the public form can reject a bad title before writing anything. */
+export const swapTitle = z
+  .string()
+  .trim()
+  .min(3, "Give the swap a short title")
+  .max(140, "Keep the title under 140 characters");
+
+/** The four fields a business owns about itself, with no operator-only notes. */
+export const partyIdentityInput = partyInput.pick({ name: true, kind: true, website: true, email: true });
+
 export const swapInput = z
   .object({
-    title: z.string().trim().min(3, "Give the swap a short title").max(140, "Keep the title under 140 characters"),
+    title: swapTitle,
     partyAId: z.uuid("Pick the proposing side"),
     partyBId: z.uuid("Pick the partner"),
     notes: optionalText(2000),
