@@ -36,9 +36,14 @@ export function Mark({ size = 32, className }: { size?: number; className?: stri
   );
 }
 
+/**
+ * No aria-label on the wrapper: a span has the generic role, for which naming
+ * is prohibited, so conforming screen readers drop it anyway. The visible
+ * wordmark already supplies the name.
+ */
 export function Logo({ size = 28 }: { size?: number }) {
   return (
-    <span className="inline-flex items-center gap-2" aria-label="Surka">
+    <span className="inline-flex items-center gap-2">
       <Mark size={size} />
       <span
         className="font-display font-semibold text-ink"

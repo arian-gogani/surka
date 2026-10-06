@@ -29,7 +29,9 @@ export function DealSheet({
   return (
     <figure className="overflow-hidden rounded-xl border border-line bg-white">
       <div className="border-b border-line px-5 py-4 sm:px-6">
-        <p className="text-[13px] text-muted">{caption ?? "Swap proposal"}</p>
+        {/* figcaption, not a p: a figure with no caption element has no
+            accessible name, and the text reads as unrelated body copy. */}
+        <figcaption className="text-[13px] text-muted">{caption ?? "Swap proposal"}</figcaption>
         <h2 className="mt-1 text-lg font-semibold sm:text-xl">{title}</h2>
       </div>
       <div className="grid sm:grid-cols-[1fr_3px_1fr]">

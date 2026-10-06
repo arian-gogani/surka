@@ -270,7 +270,10 @@ function SwapRoom({
                     {l.clicks} {l.clicks === 1 ? "click" : "clicks"}
                   </span>
                 </div>
-                <CopyLink url={`${appUrl()}/r/${l.code}`} />
+                {/* Labelled per placement: every tracking link produced a button
+                    called "Copy link", so a screen reader's button list showed N
+                    identical entries pointing at different URLs. */}
+                <CopyLink url={`${appUrl()}/r/${l.code}`} label={`Copy link for ${l.label}`} />
               </li>
             ))}
           </ul>
@@ -338,7 +341,15 @@ function CommitmentRow({ c, now, children }: { c: Commitment; now: Date; childre
         {c.proofUrl ? (
           <>
             {", "}
-            <a href={c.proofUrl} rel="noopener noreferrer" target="_blank" className="underline underline-offset-2">
+            {/* Every proof link read just "proof", so a screen reader's links
+                list showed identical entries pointing at different URLs. */}
+            <a
+              href={c.proofUrl}
+              rel="noopener noreferrer"
+              target="_blank"
+              aria-label={`Proof for ${c.description} (opens in a new tab)`}
+              className="underline underline-offset-2"
+            >
               proof
             </a>
           </>
