@@ -7,7 +7,7 @@ import { Button, ButtonLink, CommitmentState, Field, Notice, SideTag, StatusPill
 import { getDb } from "@/db/client";
 import type { Commitment, Side } from "@/db/schema";
 import { formatDate, relativeDue } from "@/lib/dates";
-import { appUrl } from "@/lib/env";
+import { appUrl, contactEmail } from "@/lib/env";
 import { SurkaError } from "@/lib/errors";
 import { sheetSide } from "@/lib/present";
 import { getSwapForToken, type SideView } from "@/lib/services/swaps";
@@ -73,7 +73,12 @@ export default async function SwapLinkPage({ params, searchParams }: Props) {
   return (
     <div className="min-h-screen">
       <header className="mx-auto flex max-w-4xl items-center justify-between px-5 py-5 sm:px-8">
-        <Logo size={26} />
+        {/* A link, like the one on every other page. Someone who arrived here
+            from a stranger's email has no other way to find out what Surka is
+            before deciding whether to agree to anything. */}
+        <a href="/" className="rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-spark-deep">
+          <Logo size={26} />
+        </a>
         <StatusPill status={view.swap.status} />
       </header>
 
@@ -87,7 +92,10 @@ export default async function SwapLinkPage({ params, searchParams }: Props) {
               {sheet}
             </Intro>
           ) : (
-            <Intro title="This proposal isn't ready yet" body="You'll get a link as soon as it is." />
+            <Intro
+              title="This proposal isn't ready yet"
+              body="Keep this link. The terms are still being written, and this page will show them as soon as they are."
+            />
           )
         ) : null}
 
@@ -119,7 +127,7 @@ export default async function SwapLinkPage({ params, searchParams }: Props) {
             title="The terms are being reworked"
             body={
               me === "b"
-                ? "Thanks for your suggestion. We'll send you a new version."
+                ? "Thanks. Keep this link: the reworked terms appear on this page, and you answer them here."
                 : `${theirParty.name} suggested changes. We'll send them a new version once you've agreed to it.`
             }
           >
@@ -175,6 +183,22 @@ export default async function SwapLinkPage({ params, searchParams }: Props) {
         {partnerLinkToSend && unanswered ? <SendToPartner name={theirParty.name} token={partnerLinkToSend} /> : null}
 
         <RunYourOwn token={view.token} />
+
+        {/* Every refusal on this page used to end the road: a checked
+            commitment, an expired proposal, a race with the other side. There
+            was no address anywhere on it, and the logo was not a link. */}
+        <footer className="border-t border-line pt-6 text-[14px] text-muted">
+          <p>
+            Something wrong with this swap?{" "}
+            <a
+              href={`mailto:${contactEmail()}?subject=${encodeURIComponent(`Swap: ${view.swap.title}`)}`}
+              className="font-medium text-ink underline underline-offset-4"
+            >
+              Email us
+            </a>{" "}
+            and we&apos;ll sort it out. Keep this link: it is the only way back to this page.
+          </p>
+        </footer>
       </main>
     </div>
   );
@@ -343,7 +367,26 @@ function SwapRoom({
         <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-white">
           {mine.map((c) => (
             <CommitmentRow key={c.id} c={c} now={now}>
-              {c.status === "pending" && !done ? <DeliverForm token={view.token} commitmentId={c.id} /> : null}
+              {c.status === "pending" || c.status === "delivered" ? (
+                // Delivered rows keep the form so a mistyped proof link can be
+                // replaced before anyone reads it.
+                <DeliverForm token={view.token} commitmentId={c.id} replacing={c.status === "delivered"} />
+              ) : null}
+              {c.status === "missed" ? (
+                // A miss is a human judgement from a proof link, and it goes
+                // into this side's record. Without this there was no form, no
+                // appeal, and no address anywhere on the page.
+                <p className="mt-3 text-[14px] text-muted">
+                  Checked as missed. If you did deliver this, or the link we read was the wrong one,{" "}
+                  <a
+                    href={`mailto:${contactEmail()}?subject=${encodeURIComponent(`Missed: ${c.description}`)}`}
+                    className="font-medium text-ink underline underline-offset-4"
+                  >
+                    email us
+                  </a>{" "}
+                  and we&apos;ll reopen the check.
+                </p>
+              ) : null}
             </CommitmentRow>
           ))}
         </ul>
@@ -474,25 +517,35 @@ function CommitmentRow({ c, now, children }: { c: Commitment; now: Date; childre
   );
 }
 
-function DeliverForm({ token, commitmentId }: { token: string; commitmentId: string }) {
+function DeliverForm({
+  token,
+  commitmentId,
+  replacing,
+}: {
+  token: string;
+  commitmentId: string;
+  replacing: boolean;
+}) {
   const id = `proof-${commitmentId}`;
   return (
     <form action={deliverAction} className="mt-3 flex flex-col gap-2 sm:flex-row">
       <input type="hidden" name="token" value={token} />
       <input type="hidden" name="commitmentId" value={commitmentId} />
       <label htmlFor={id} className="sr-only">
-        Link that shows it&apos;s done
+        {replacing ? "Replace the link that shows it's done" : "Link that shows it's done"}
       </label>
       <input
         id={id}
         name="proofUrl"
         type="url"
         required
-        placeholder="Link that shows it's done, like the archive page"
+        placeholder={
+          replacing ? "Paste a different link to replace the one above" : "Link that shows it's done, like the archive page"
+        }
         className="field"
       />
-      <Button type="submit" variant="action" className="shrink-0">
-        Mark delivered
+      <Button type="submit" variant={replacing ? "quiet" : "action"} className="shrink-0">
+        {replacing ? "Replace link" : "Mark delivered"}
       </Button>
     </form>
   );
