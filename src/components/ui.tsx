@@ -73,17 +73,9 @@ export function Field({
   );
 }
 
-export function Notice({ tone, children }: { tone: "error" | "ok"; children: ReactNode }) {
-  const styles =
-    tone === "error"
-      ? "border-spark/40 bg-spark-wash text-[#7a2410]"
-      : "border-kept/30 bg-kept-wash text-kept-deep";
-  return (
-    <div role={tone === "error" ? "alert" : "status"} className={`rounded-md border px-4 py-3 text-[15px] ${styles}`}>
-      {children}
-    </div>
-  );
-}
+// Notice lives in its own client module: it focuses itself so the message is
+// actually announced after a redirect. Re-exported here so callers are unchanged.
+export { Notice } from "./notice";
 
 const STATUS_STYLE: Record<SwapStatus, string> = {
   draft: "bg-white text-muted border-line",

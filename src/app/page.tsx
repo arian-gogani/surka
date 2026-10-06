@@ -86,7 +86,9 @@ export default function Home() {
           />
         </section>
 
-        <section id="how" className="border-t border-line bg-white">
+        {/* tabIndex so the jump link actually moves focus here. Without it the
+            next Tab went to the link after the hero, not into this section. */}
+        <section id="how" tabIndex={-1} className="border-t border-line bg-white">
           <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8">
             <div className="max-w-2xl">
               <h2 className="text-3xl font-semibold sm:text-4xl">What Surka does after you say yes</h2>
