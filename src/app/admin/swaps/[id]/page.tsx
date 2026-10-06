@@ -7,7 +7,7 @@ import { TermsFields } from "@/components/terms-fields";
 import { Button, CommitmentState, Field, SideTag, StatusPill } from "@/components/ui";
 import { getDb } from "@/db/client";
 import type { Side } from "@/db/schema";
-import { formatDate, relativeDue } from "@/lib/dates";
+import { formatDate, relativeDue, toDateOnly } from "@/lib/dates";
 import { appUrl } from "@/lib/env";
 import { SurkaError } from "@/lib/errors";
 import { getSwapDetail, type SwapDetail } from "@/lib/services/swaps";
@@ -184,6 +184,7 @@ export default async function SwapAdminPage({
             <summary className="cursor-pointer font-medium">Rework the terms</summary>
             <form action={replaceTermsAction} className="mt-4 space-y-4">
               <TermsFields
+                today={toDateOnly(new Date())}
                 names={{ a: d.partyA.name, b: d.partyB.name }}
                 rows={d.commitments.map((c) => ({ side: c.side, description: c.description, dueDate: c.dueDate }))}
               />

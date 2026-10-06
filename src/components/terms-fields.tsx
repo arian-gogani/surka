@@ -13,11 +13,14 @@ export interface TermRow {
 export function TermsFields({
   rows,
   names,
+  today,
   spare = 2,
 }: {
   rows: TermRow[];
   names: { a: string; b: string };
   spare?: number;
+  /** Earliest date the picker will offer, so a past deadline is not a mis-click away. */
+  today: string;
 }) {
   const all: TermRow[] = [
     ...rows,
@@ -47,7 +50,16 @@ export function TermsFields({
           </label>
           <label className="block">
             <span className="sr-only">Row {i + 1}: due date</span>
-            <input name={`commitments.${i}.dueDate`} type="date" defaultValue={row.dueDate} className="field num" />
+            {/* The public form guards its dates; this one did not, so a
+                fat-fingered year read as "20273 days ago" and sorted the whole
+                dashboard by it. */}
+            <input
+              name={`commitments.${i}.dueDate`}
+              type="date"
+              min={today}
+              defaultValue={row.dueDate}
+              className="field num"
+            />
           </label>
         </div>
       ))}

@@ -63,6 +63,7 @@ export default async function NewSwapPage({ searchParams }: { searchParams: Prom
           </Field>
         </div>
         <TermsFields
+          today={toDateOnly(new Date())}
           names={{ a: "Proposing side", b: "Partner" }}
           rows={[
             { side: "a", description: "", dueDate: inTwoWeeks },

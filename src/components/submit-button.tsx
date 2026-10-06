@@ -14,8 +14,28 @@ import { Button } from "./ui";
 export function SubmitButton({ children, pendingLabel }: { children: string; pendingLabel: string }) {
   const { pending } = useFormStatus();
   return (
-    <Button variant="action" type="submit" disabled={pending} aria-busy={pending}>
-      {pending ? pendingLabel : children}
-    </Button>
+    <>
+      {/*
+        aria-disabled rather than disabled. Disabling the button the user just
+        activated removes it from the accessibility tree and the tab order, so
+        focus falls to the body and their place is lost, and a disabled
+        element's label is not announced. The click guard still blocks the
+        second submit.
+      */}
+      <Button
+        variant="action"
+        type="submit"
+        aria-disabled={pending}
+        onClick={(event) => {
+          if (pending) event.preventDefault();
+        }}
+        className={pending ? "cursor-not-allowed opacity-50" : ""}
+      >
+        {pending ? pendingLabel : children}
+      </Button>
+      <span role="status" className="sr-only">
+        {pending ? pendingLabel : ""}
+      </span>
+    </>
   );
 }
