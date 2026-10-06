@@ -40,7 +40,7 @@ const ALL_STATUSES: SwapStatus[] = [
 export async function pilotMetrics(db: Db, now = new Date()): Promise<PilotMetrics> {
   const weekAgo = new Date(now.getTime() - 7 * DAY_MS);
 
-  const [statusRows, weekRows, commitmentRows, minutesRows, partyRows, fullyKeptRows, resultRows] =
+  const [statusRows, weekRows, commitmentRows, minutesRows, partyRows, fullyKeptRows, answerRows, resultRows] =
     await Promise.all([
     db.select({ status: swaps.status, n: sql<number>`count(*)::int` }).from(swaps).groupBy(swaps.status),
     db
@@ -74,6 +74,15 @@ export async function pilotMetrics(db: Db, now = new Date()): Promise<PilotMetri
           select 1 from commitments c where c.swap_id = s.id and c.status = 'missed'
         )
     `),
+    // From the answers themselves, not the current status. Status drops a
+    // countered swap from both sides of the ratio even though the partner did
+    // answer, and loses an accepted swap that was later cancelled.
+    db.execute<{ answered: number; accepted: number }>(sql`
+      select
+        count(distinct swap_id)::int as answered,
+        count(distinct swap_id) filter (where decision = 'accept')::int as accepted
+      from responses
+    `),
     db
       // bigint: int4 overflows at about 215 max-value rows and the exception
       // escapes pilotMetrics, taking the whole dashboard down with it.
@@ -89,13 +98,14 @@ export async function pilotMetrics(db: Db, now = new Date()): Promise<PilotMetri
   const missed = commitmentRows.find((r) => r.status === "missed")?.n ?? 0;
   const checked = kept + missed;
 
-  const everAccepted = swapsByStatus.accepted + swapsByStatus.completed;
-  const answered = everAccepted + swapsByStatus.declined;
 
-  const repeatRows = Array.isArray(partyRows) ? partyRows : (partyRows as { rows: { n: number }[] }).rows;
-  const keptRows = Array.isArray(fullyKeptRows)
-    ? fullyKeptRows
-    : (fullyKeptRows as { rows: { n: number }[] }).rows;
+  const rowsOf = <T,>(result: unknown): T[] =>
+    Array.isArray(result) ? (result as T[]) : ((result as { rows: T[] }).rows ?? []);
+  const repeatRows = rowsOf<{ n: number }>(partyRows);
+  const keptRows = rowsOf<{ n: number }>(fullyKeptRows);
+  const answers = rowsOf<{ answered: number; accepted: number }>(answerRows)[0];
+  const answered = Number(answers?.answered ?? 0);
+  const accepted = Number(answers?.accepted ?? 0);
 
   return {
     swapsByStatus,
@@ -103,7 +113,7 @@ export async function pilotMetrics(db: Db, now = new Date()): Promise<PilotMetri
     onTimeRate: checked === 0 ? null : kept / checked,
     keptCommitments: kept,
     checkedCommitments: checked,
-    acceptanceRate: answered === 0 ? null : everAccepted / answered,
+    acceptanceRate: answered === 0 ? null : accepted / answered,
     minutesPerCompletedSwap: minutesRows[0]?.avg ?? null,
     repeatParties: Number(repeatRows[0]?.n ?? 0),
     swapsFullyKept: Number(keptRows[0]?.n ?? 0),

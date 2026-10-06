@@ -644,3 +644,49 @@ describe("re-sending a deal sheet", () => {
     expect((await getSwapDetail(db, swap.id)).swap.status).toBe("proposed");
   });
 });
+
+describe("the acceptance time is a fact, not a cursor", () => {
+  it("survives a completed swap being reopened", async () => {
+    const { swap, tokens } = await seedSwap();
+    await markProposed(db, swap.id, NOW);
+    await respond(db, tokens.b, { decision: "accept" }, NOW);
+    const agreedAt = (await getSwapDetail(db, swap.id)).swap.acceptedAt;
+
+    const view = await getSwapForToken(db, tokens.a, NOW);
+    for (const c of view.commitments) await verifyCommitment(db, c.id, "kept", NOW);
+    const first = view.commitments[0];
+    if (!first) throw new Error("expected commitments");
+
+    const later = new Date("2026-11-20T15:00:00Z");
+    await verifyCommitment(db, first.id, "pending", later);
+
+    // Reopening moves the swap back to accepted; it must not rewrite when the
+    // deal was actually agreed.
+    expect((await getSwapDetail(db, swap.id)).swap.acceptedAt).toEqual(agreedAt);
+  });
+});
+
+describe("acceptance rate counts answers, not current status", () => {
+  it("counts a countered swap as answered", async () => {
+    const a = await seedSwap();
+    await markProposed(db, a.swap.id, NOW);
+    await respond(db, a.tokens.b, { decision: "accept" }, NOW);
+
+    const b = await seedSwap();
+    await markProposed(db, b.swap.id, NOW);
+    await respond(db, b.tokens.b, { decision: "counter", message: "Could we move the date?" }, NOW);
+
+    // One accept, one counter. Status-based counting saw only the accept and
+    // reported 100%; the partner answered both.
+    expect((await pilotMetrics(db, NOW)).acceptanceRate).toBeCloseTo(0.5);
+  });
+
+  it("still counts a swap accepted then cancelled", async () => {
+    const { swap, tokens } = await seedSwap();
+    await markProposed(db, swap.id, NOW);
+    await respond(db, tokens.b, { decision: "accept" }, NOW);
+    await cancelSwap(db, swap.id, "called off", NOW);
+    // Status-based counting dropped this from both sides of the ratio.
+    expect((await pilotMetrics(db, NOW)).acceptanceRate).toBeCloseTo(1);
+  });
+});

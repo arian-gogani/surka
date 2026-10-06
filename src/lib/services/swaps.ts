@@ -234,7 +234,9 @@ async function moveSwap(db: Db, swap: Swap, to: SwapStatus, now: Date): Promise<
   assertTransition(swap.status, to);
   const stamps: Partial<Pick<Swap, "proposedAt" | "acceptedAt" | "completedAt" | "closedAt">> = {};
   if (to === "proposed") stamps.proposedAt = now;
-  if (to === "accepted") stamps.acceptedAt = now;
+  // Only on the first acceptance. Reopening a completed swap moves it back to
+  // accepted, and stamping again rewrote when the deal was actually agreed.
+  if (to === "accepted" && !swap.acceptedAt) stamps.acceptedAt = now;
   if (to === "completed") stamps.completedAt = now;
   if (to === "declined" || to === "cancelled") stamps.closedAt = now;
   const [moved] = await db
