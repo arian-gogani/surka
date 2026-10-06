@@ -23,12 +23,30 @@ describe("swap status rules", () => {
     expect(canTransition("accepted", "completed")).toBe(true);
   });
 
-  it("never reopens a finished swap", () => {
+  it("never reopens a swap the partner closed", () => {
+    // Declining and cancelling are the other side's decision, not a judgement
+    // the operator made, so neither reopens.
     for (const to of ["draft", "proposed", "accepted"] as const) {
-      expect(canTransition("completed", to)).toBe(false);
       expect(canTransition("declined", to)).toBe(false);
       expect(canTransition("cancelled", to)).toBe(false);
     }
+  });
+
+  it("reopens a completed swap, but only back to accepted", () => {
+    // Completing is a conclusion the operator reached by hand, and a mis-click
+    // on Kept should not be permanent.
+    expect(canTransition("completed", "accepted")).toBe(true);
+    expect(canTransition("completed", "draft")).toBe(false);
+    expect(canTransition("completed", "proposed")).toBe(false);
+    expect(canTransition("completed", "cancelled")).toBe(false);
+  });
+
+  it("reopens a checked commitment", () => {
+    expect(canMoveCommitment("kept", "pending")).toBe(true);
+    expect(canMoveCommitment("missed", "pending")).toBe(true);
+    // But not straight from one verdict to the other: reopen, then re-check.
+    expect(canMoveCommitment("kept", "missed")).toBe(false);
+    expect(canMoveCommitment("missed", "kept")).toBe(false);
   });
 
   it("can't skip the partner's answer", () => {
@@ -59,10 +77,9 @@ describe("swap status rules", () => {
     expect(allResolved([{ status: "kept" }, { status: "delivered" }])).toBe(false);
   });
 
-  it("keeps checked commitments final", () => {
+  it("moves a commitment forward through delivery", () => {
     expect(canMoveCommitment("pending", "delivered")).toBe(true);
     expect(canMoveCommitment("delivered", "kept")).toBe(true);
-    expect(canMoveCommitment("kept", "missed")).toBe(false);
   });
 });
 

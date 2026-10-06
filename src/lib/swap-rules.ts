@@ -6,7 +6,9 @@ const SWAP_TRANSITIONS: Record<SwapStatus, readonly SwapStatus[]> = {
   proposed: ["accepted", "countered", "declined", "cancelled"],
   countered: ["proposed", "declined", "cancelled"],
   accepted: ["completed", "cancelled"],
-  completed: [],
+  // Reopening a checked commitment pulls the swap back here. A completed swap
+  // is a conclusion the operator reached by hand, and operators mis-click.
+  completed: ["accepted"],
   declined: [],
   cancelled: [],
 };
@@ -44,11 +46,20 @@ export function statusAfterDecision(decision: Decision): SwapStatus {
   }
 }
 
+/**
+ * Kept and missed reopen rather than freezing.
+ *
+ * A check is a human judgement made from a proof link, and Kept and Missed sit
+ * next to each other. Freezing the outcome meant one mis-click wrote a false
+ * record into both parties' reputation with no way back. Integrity comes from
+ * the append-only timeline, which keeps every check and every reopen, not from
+ * making the current value unchangeable.
+ */
 const COMMITMENT_TRANSITIONS: Record<CommitmentStatus, readonly CommitmentStatus[]> = {
   pending: ["delivered", "kept", "missed"],
   delivered: ["kept", "missed", "pending"],
-  kept: [],
-  missed: [],
+  kept: ["pending"],
+  missed: ["pending"],
 };
 
 export function canMoveCommitment(from: CommitmentStatus, to: CommitmentStatus): boolean {

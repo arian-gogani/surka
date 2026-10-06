@@ -424,7 +424,11 @@ export async function verifyCommitment(
   const [commitment] = await db.select().from(commitments).where(eq(commitments.id, commitmentId)).limit(1);
   if (!commitment) throw new SurkaError("That commitment doesn't exist.", "not_found");
   const swap = await requireSwap(db, commitment.swapId);
-  if (swap.status !== "accepted") {
+  // Reopening is allowed on a completed swap: that is the whole point of being
+  // able to undo a mis-check, and completing was the thing the mis-check caused.
+  const reopening = outcome === "pending";
+  const checkable = swap.status === "accepted" || (reopening && swap.status === "completed");
+  if (!checkable) {
     throw new SurkaError("Only swaps in progress can have commitments checked.", "conflict");
   }
   if (!canMoveCommitment(commitment.status, outcome)) {
@@ -442,13 +446,13 @@ export async function verifyCommitment(
       .where(and(eq(commitments.id, commitment.id), eq(commitments.status, commitment.status)))
       .returning({ id: commitments.id });
     if (!changed) throw new SurkaError("That commitment has already been checked.", "conflict");
-    if (outcome === "pending") {
+    if (reopening) {
       // Reopening after a bad proof puts the commitment back in the reminder
       // query, but its spent windows would still be on file, so it would never
       // be chased again. Reopening the commitment reopens its schedule too.
       await tx.delete(remindersSent).where(eq(remindersSent.commitmentId, commitment.id));
     }
-    await logEvent(tx, swap.id, outcome === "pending" ? "reopened" : outcome, {
+    await logEvent(tx, swap.id, reopening ? "reopened" : outcome, {
       side: commitment.side,
       detail: commitment.description,
     });
@@ -457,7 +461,19 @@ export async function verifyCommitment(
       .select({ status: commitments.status })
       .from(commitments)
       .where(eq(commitments.swapId, swap.id));
-    if (!allResolved(all)) return { swapCompleted: false };
+
+    if (!allResolved(all)) {
+      // Reopening the one commitment that had completed the swap pulls the
+      // swap back with it, so the deal sheet stops saying it is finished and
+      // the delivery forms come back.
+      if (swap.status === "completed") {
+        await moveSwap(tx, swap, "accepted", now);
+        await tx.update(swaps).set({ completedAt: null }).where(eq(swaps.id, swap.id));
+        await logEvent(tx, swap.id, "reopened");
+      }
+      return { swapCompleted: false };
+    }
+    if (swap.status === "completed") return { swapCompleted: true };
     await moveSwap(tx, swap, "completed", now);
     await logEvent(tx, swap.id, "completed");
     return { swapCompleted: true };

@@ -573,3 +573,63 @@ describe("reopening a commitment reopens its reminders", () => {
     expect(sent.length).toBeGreaterThan(before);
   });
 });
+
+describe("a mis-check can be undone", () => {
+  async function completed() {
+    const { swap, tokens } = await seedSwap();
+    await markProposed(db, swap.id, NOW);
+    await respond(db, tokens.b, { decision: "accept" }, NOW);
+    const view = await getSwapForToken(db, tokens.a, NOW);
+    for (const c of view.commitments) await verifyCommitment(db, c.id, "kept", NOW);
+    return { swap, tokens, commitments: view.commitments };
+  }
+
+  it("pulls the swap back out of completed when a check is reopened", async () => {
+    const { swap, commitments: cs } = await completed();
+    const first = cs[0];
+    if (!first) throw new Error("expected commitments");
+    expect((await getSwapDetail(db, swap.id)).swap.status).toBe("completed");
+
+    await verifyCommitment(db, first.id, "pending", NOW);
+
+    const after = await getSwapDetail(db, swap.id);
+    expect(after.swap.status).toBe("accepted");
+    // Not still stamped as finished, or the dashboard and both deal sheets lie.
+    expect(after.swap.completedAt).toBeNull();
+  });
+
+  it("lets the operator record the opposite verdict afterwards", async () => {
+    const { swap, commitments: cs } = await completed();
+    const first = cs[0];
+    if (!first) throw new Error("expected commitments");
+
+    await verifyCommitment(db, first.id, "pending", NOW);
+    await verifyCommitment(db, first.id, "missed", NOW);
+
+    const after = await getSwapDetail(db, swap.id);
+    expect(after.commitments.find((c) => c.id === first.id)?.status).toBe("missed");
+    // Every commitment is resolved again, so the swap completes a second time.
+    expect(after.swap.status).toBe("completed");
+  });
+
+  it("keeps the whole history, so the record is auditable rather than mutable", async () => {
+    const { swap, commitments: cs } = await completed();
+    const first = cs[0];
+    if (!first) throw new Error("expected commitments");
+    await verifyCommitment(db, first.id, "pending", NOW);
+
+    const types = (await getSwapDetail(db, swap.id)).events.map((e) => e.type);
+    expect(types).toContain("kept");
+    expect(types).toContain("reopened");
+  });
+
+  it("still refuses to reopen a swap the partner declined", async () => {
+    const { swap, tokens } = await seedSwap();
+    await markProposed(db, swap.id, NOW);
+    await respond(db, tokens.b, { decision: "decline" }, NOW);
+    const detail = await getSwapDetail(db, swap.id);
+    const first = detail.commitments[0];
+    if (!first) throw new Error("expected commitments");
+    await expectSurka(verifyCommitment(db, first.id, "pending", NOW), "conflict");
+  });
+});

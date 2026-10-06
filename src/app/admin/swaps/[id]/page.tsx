@@ -12,7 +12,7 @@ import { appUrl } from "@/lib/env";
 import { SurkaError } from "@/lib/errors";
 import { getSwapDetail, type SwapDetail } from "@/lib/services/swaps";
 import { possessive } from "@/lib/present";
-import { isFinal, termsEditable } from "@/lib/swap-rules";
+import { isFinal, isResolved, termsEditable } from "@/lib/swap-rules";
 import {
   addLinkAction,
   addResultAction,
@@ -159,6 +159,19 @@ export default async function SwapAdminPage({
                         Reopen
                       </Button>
                     ) : null}
+                  </form>
+                ) : null}
+                {/* A check is a human judgement and Kept sits beside Missed, so
+                    it has to be undoable. Reopening a completed swap's last
+                    commitment pulls the swap back to accepted. */}
+                {isResolved(c.status) && (status === "accepted" || status === "completed") ? (
+                  <form action={verifyAction}>
+                    <input type="hidden" name="swapId" value={d.swap.id} />
+                    <input type="hidden" name="commitmentId" value={c.id} />
+                    <input type="hidden" name="outcome" value="pending" />
+                    <Button type="submit" className="min-h-9 px-3 text-sm">
+                      Reopen this check
+                    </Button>
                   </form>
                 ) : null}
               </div>
