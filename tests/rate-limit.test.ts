@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { constantTimeEquals } from "@/lib/compare";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 
 const WINDOW = 60_000;
@@ -62,5 +63,27 @@ describe("client key", () => {
     expect(clientKey(new Headers())).toBe("unknown");
     // An empty forwarded header must not produce an empty key per caller.
     expect(clientKey(new Headers({ "x-forwarded-for": "" }))).toBe("unknown");
+  });
+});
+
+describe("constant time compare", () => {
+  it("matches identical secrets", () => {
+    expect(constantTimeEquals("Bearer abc123", "Bearer abc123")).toBe(true);
+  });
+
+  it("rejects a secret that differs only in the last character", () => {
+    expect(constantTimeEquals("Bearer abc123", "Bearer abc124")).toBe(false);
+  });
+
+  it("rejects a secret that differs only in the first character", () => {
+    expect(constantTimeEquals("Bearer abc123", "Xearer abc123")).toBe(false);
+  });
+
+  it("rejects a prefix, which a short-circuiting compare would also reject but sooner", () => {
+    expect(constantTimeEquals("Bearer abc", "Bearer abc123")).toBe(false);
+  });
+
+  it("rejects empty against a real secret", () => {
+    expect(constantTimeEquals("", "Bearer abc123")).toBe(false);
   });
 });
