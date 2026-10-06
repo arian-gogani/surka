@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ComponentProps, ReactNode } from "react";
+import { cloneElement, isValidElement, type ComponentProps, type ReactNode } from "react";
 import type { CommitmentStatus, SwapStatus } from "@/db/schema";
 import { COMMITMENT_LABEL, STATUS_LABEL } from "@/lib/swap-rules";
 
@@ -32,6 +32,14 @@ export function ButtonLink({
   return <Link className={`${BASE} ${VARIANT[variant]} ${className}`} {...props} />;
 }
 
+/**
+ * A labelled control with an optional hint.
+ *
+ * The hint sits outside the label and is linked with aria-describedby. Inside
+ * the label it became part of the control's accessible name, so "Your email"
+ * announced as "Your email Optional. For swap reminders if email delivery is
+ * enabled." every time, including on each validation error.
+ */
 export function Field({
   label,
   hint,
@@ -43,12 +51,25 @@ export function Field({
   children: ReactNode;
   className?: string;
 }) {
+  const hintId = hint ? `hint-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}` : undefined;
+  const control =
+    hintId && isValidElement<{ "aria-describedby"?: string }>(children)
+      ? cloneElement(children, {
+          "aria-describedby": [children.props["aria-describedby"], hintId].filter(Boolean).join(" "),
+        })
+      : children;
   return (
-    <label className={`block ${className}`}>
-      <span className="mb-1.5 block text-sm font-medium text-ink">{label}</span>
-      {children}
-      {hint ? <span className="mt-1 block text-[13px] text-muted">{hint}</span> : null}
-    </label>
+    <div className={`block ${className}`}>
+      <label className="block">
+        <span className="mb-1.5 block text-sm font-medium text-ink">{label}</span>
+        {control}
+      </label>
+      {hint ? (
+        <span id={hintId} className="mt-1 block text-[13px] text-muted">
+          {hint}
+        </span>
+      ) : null}
+    </div>
   );
 }
 
