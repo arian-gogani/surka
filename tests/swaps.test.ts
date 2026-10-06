@@ -516,3 +516,34 @@ describe("two people acting at once", () => {
     expect(row.status === "delivered" && row.verifiedAt !== null).toBe(false);
   });
 });
+
+describe("the public form opens a swap atomically", () => {
+  it("creates it already proposed, so the links work the moment they are shown", async () => {
+    const mine = await createParty(db, { name: "Clinic Scheduler", kind: "app" });
+    const theirs = await createParty(db, { name: "Practice Manager Weekly", kind: "newsletter" });
+    const { swap, tokens } = await createSwap(
+      db,
+      {
+        title: "Newsletter section for an extended trial",
+        partyAId: mine.id,
+        partyBId: theirs.id,
+        commitments: [
+          { side: "a", description: "Extra free month for readers", dueDate: "2026-10-18" },
+          { side: "b", description: "Dedicated section in the Oct 17 issue", dueDate: "2026-10-17" },
+        ],
+      },
+      { status: "proposed", now: NOW },
+    );
+
+    expect(swap.status).toBe("proposed");
+    expect(swap.proposedAt).not.toBeNull();
+    // The partner can answer immediately; previously a failure between creating
+    // and proposing left a swap nobody could reach, tokens included.
+    await expect(respond(db, tokens.b, { decision: "accept" }, NOW)).resolves.toBe("accepted");
+  });
+
+  it("still defaults to draft for the operator flow", async () => {
+    const { swap } = await seedSwap();
+    expect(swap.status).toBe("draft");
+  });
+});

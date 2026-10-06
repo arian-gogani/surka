@@ -153,7 +153,19 @@ export interface CreatedSwap {
   tokens: Record<Side, string>;
 }
 
-export async function createSwap(db: Db, input: unknown): Promise<CreatedSwap> {
+/**
+ * Creates a swap and its two private links.
+ *
+ * `proposed` lets the public form open a swap that is immediately live in the
+ * same transaction. Doing that as a separate call afterwards meant a failure
+ * in between left a swap in draft whose tokens had been generated but never
+ * shown to anyone, so nobody on earth could reach it again.
+ */
+export async function createSwap(
+  db: Db,
+  input: unknown,
+  { status = "draft" as Extract<SwapStatus, "draft" | "proposed">, now = new Date() } = {},
+): Promise<CreatedSwap> {
   const values = parse(swapInput, input);
   const found = await db
     .select({ id: parties.id })
@@ -169,6 +181,8 @@ export async function createSwap(db: Db, input: unknown): Promise<CreatedSwap> {
         partyAId: values.partyAId,
         partyBId: values.partyBId,
         notes: values.notes,
+        status,
+        ...(status === "proposed" ? { proposedAt: now } : {}),
       })
       .returning();
     if (!swap) throw new Error("Insert returned no row");
@@ -183,6 +197,7 @@ export async function createSwap(db: Db, input: unknown): Promise<CreatedSwap> {
       { token: tokens.b, swapId: swap.id, side: "b" as const },
     ]);
     await logEvent(tx, swap.id, "created");
+    if (status === "proposed") await logEvent(tx, swap.id, "proposed");
     return { swap, tokens };
   });
 }

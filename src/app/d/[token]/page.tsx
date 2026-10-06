@@ -168,21 +168,38 @@ function RespondForm({ token }: { token: string }) {
       <Field label="Anything you'd change?" hint="Needed if you suggest changes. Optional otherwise.">
         <textarea name="message" rows={3} className="field" />
       </Field>
-      <div className="flex flex-wrap gap-3">
-        <Button type="submit" name="decision" value="accept" variant="action">
-          Accept swap
-        </Button>
-        <Button type="submit" name="decision" value="counter">
-          Suggest changes
-        </Button>
-        <Button type="submit" name="decision" value="decline" variant="danger">
-          Decline
-        </Button>
-      </div>
+      {/*
+        Three submit buttons sharing a name would make the first one the form's
+        default, so pressing Enter in the email field silently submitted
+        "accept". Accepting is irreversible, and a keyboard or screen reader
+        user would never have seen it happen. A radio group makes the choice
+        explicit, and implicit submission now triggers validation instead.
+      */}
+      <fieldset className="space-y-3">
+        <legend className="text-[15px] font-medium">What would you like to do?</legend>
+        {DECISIONS.map((d) => (
+          <label key={d.value} className="flex items-start gap-3 text-[15px]">
+            <input type="radio" name="decision" value={d.value} required className="mt-1" />
+            <span>
+              <span className="font-medium">{d.label}</span>
+              <span className="block text-muted">{d.hint}</span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
+      <Button type="submit" variant="action">
+        Send answer
+      </Button>
       <input type="hidden" name="token" value={token} />
     </form>
   );
 }
+
+const DECISIONS = [
+  { value: "accept", label: "Accept the swap", hint: "Both sides are held to the dates above." },
+  { value: "counter", label: "Suggest changes", hint: "Say what you'd change and it goes back for a rework." },
+  { value: "decline", label: "Decline", hint: "Nothing else is needed from you." },
+] as const;
 
 function SwapRoom({
   view,

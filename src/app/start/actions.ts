@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
 import { messageFor } from "@/lib/errors";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
-import { createParty, createSwap, markProposed, partyForToken } from "@/lib/services/swaps";
+import { createParty, createSwap, partyForToken } from "@/lib/services/swaps";
 
 /** Five swaps per address per hour: generous for a real founder, dull for a script. */
 const LIMIT = 5;
@@ -49,18 +49,22 @@ export async function startSwapAction(formData: FormData) {
       }),
     ]);
 
-    const created = await createSwap(db, {
-      title: field("title"),
-      partyAId: you.id,
-      partyBId: partner.id,
-      commitments: [
-        { side: "a", description: field("yourGive"), dueDate: field("yourDue") },
-        { side: "b", description: field("partnerGive"), dueDate: field("partnerDue") },
-      ],
-    });
-
-    // Proposed rather than draft: whoever filled this in is ready to send it.
-    await markProposed(db, created.swap.id);
+    // Proposed inside the same transaction. As a separate call afterwards, a
+    // failure in between left a swap whose tokens existed but were never shown,
+    // which nobody could ever reach again.
+    const created = await createSwap(
+      db,
+      {
+        title: field("title"),
+        partyAId: you.id,
+        partyBId: partner.id,
+        commitments: [
+          { side: "a", description: field("yourGive"), dueDate: field("yourDue") },
+          { side: "b", description: field("partnerGive"), dueDate: field("partnerDue") },
+        ],
+      },
+      { status: "proposed" },
+    );
     tokens = created.tokens;
   } catch (error) {
     back({ error: messageFor(error) });
