@@ -33,6 +33,7 @@ export async function generateMetadata({
     description:
       "Write down what each side gives and by when. You get two private links: one for you, one to send your partner.",
     referrer: "no-referrer",
+    alternates: { canonical: "/start" },
     ...(from ? { robots: { index: false, follow: false } } : {}),
   };
 }

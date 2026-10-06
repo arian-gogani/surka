@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { DealSheet } from "@/components/deal-sheet";
 import { Logo, Mark } from "@/components/logo";
 import { contactEmail } from "@/lib/env";
@@ -24,6 +25,9 @@ const STEPS = [
     body: "A tracking link or code on every placement, and a short report to both sides when the swap closes.",
   },
 ];
+
+/** Canonical set explicitly: the landing page is one of only two indexable URLs. */
+export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 export default function Home() {
   const mailto = `mailto:${contactEmail()}?subject=${encodeURIComponent("A swap I want to run")}`;
