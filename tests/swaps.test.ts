@@ -240,12 +240,12 @@ describe("reminders", () => {
     };
 
     // Side A's commitment is due in 3 days; side B has no email yet.
-    expect(await runReminders(db, send, NOW)).toEqual({ sent: 1, skipped: 0, failed: 0 });
+    expect(await runReminders(db, send, NOW)).toMatchObject({ sent: 1, skipped: 0, failed: 0 });
     expect(outbox[0]?.to).toBe("founder@clinicscheduler.example");
     expect(outbox[0]?.subject).toContain("Due in 3 days");
     expect(outbox[0]?.text).toContain(`/d/${tokens.a}`);
 
-    expect(await runReminders(db, send, NOW)).toEqual({ sent: 0, skipped: 0, failed: 0 });
+    expect(await runReminders(db, send, NOW)).toMatchObject({ sent: 0, skipped: 0, failed: 0 });
 
     const dayBefore = new Date("2026-10-04T15:00:00Z");
     expect((await runReminders(db, send, dayBefore)).sent).toBe(1);
@@ -266,7 +266,7 @@ describe("reminders", () => {
     const originalError = console.error;
     console.error = () => {};
     try {
-      expect(await runReminders(db, failing, NOW)).toEqual({ sent: 0, skipped: 0, failed: 1 });
+      expect(await runReminders(db, failing, NOW)).toMatchObject({ sent: 0, skipped: 0, failed: 1 });
     } finally {
       console.error = originalError;
     }
@@ -545,5 +545,31 @@ describe("the public form opens a swap atomically", () => {
   it("still defaults to draft for the operator flow", async () => {
     const { swap } = await seedSwap();
     expect(swap.status).toBe("draft");
+  });
+});
+
+describe("reopening a commitment reopens its reminders", () => {
+  it("clears spent windows so a reopened commitment is chased again", async () => {
+    const { swap, tokens } = await seedSwap();
+    await markProposed(db, swap.id, NOW);
+    await respond(db, tokens.b, { decision: "accept" }, NOW);
+    const view = await getSwapForToken(db, tokens.a, NOW);
+    const mine = view.commitments.find((c) => c.side === "a");
+    if (!mine) throw new Error("expected a commitment on side a");
+
+    // Burn every window, then deliver and have the operator reject the proof.
+    const sent: EmailMessage[] = [];
+    const send = async (m: EmailMessage) => void sent.push(m);
+    const dayAfter = new Date("2026-10-06T15:00:00Z");
+    await runReminders(db, send, NOW);
+    await runReminders(db, send, dayAfter);
+    await markDelivered(db, tokens.a, mine.id, { proofUrl: "https://example.com/bad" }, NOW);
+
+    const before = sent.length;
+    await verifyCommitment(db, mine.id, "pending", NOW);
+    // Without clearing the claims this run sends nothing and the reopened
+    // commitment is never chased again.
+    await runReminders(db, send, dayAfter);
+    expect(sent.length).toBeGreaterThan(before);
   });
 });

@@ -8,6 +8,7 @@ import {
   parties,
   responses,
   results,
+  remindersSent,
   swapAccess,
   swaps,
   trackingLinks,
@@ -441,6 +442,12 @@ export async function verifyCommitment(
       .where(and(eq(commitments.id, commitment.id), eq(commitments.status, commitment.status)))
       .returning({ id: commitments.id });
     if (!changed) throw new SurkaError("That commitment has already been checked.", "conflict");
+    if (outcome === "pending") {
+      // Reopening after a bad proof puts the commitment back in the reminder
+      // query, but its spent windows would still be on file, so it would never
+      // be chased again. Reopening the commitment reopens its schedule too.
+      await tx.delete(remindersSent).where(eq(remindersSent.commitmentId, commitment.id));
+    }
     await logEvent(tx, swap.id, outcome === "pending" ? "reopened" : outcome, {
       side: commitment.side,
       detail: commitment.description,

@@ -3,7 +3,7 @@ import { addDays, daysUntil, isValidDateOnly } from "@/lib/dates";
 import { appUrl } from "@/lib/env";
 import { computeRecord, describeRecord, HALF_LIFE_DAYS } from "@/lib/reputation";
 import { possessive } from "@/lib/present";
-import { dueReminderKind } from "@/lib/reminders";
+import { dueReminderKind, reminderSubject } from "@/lib/reminders";
 import {
   allResolved,
   canMoveCommitment,
@@ -164,5 +164,30 @@ describe("app URL", () => {
     expect(appUrl()).toBe("https://surka.vercel.app");
     vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "");
     expect(appUrl()).toBe("http://localhost:3000");
+  });
+});
+
+describe("reminder subjects match the body", () => {
+  const DUE = "2026-10-05";
+  it("says today when the deadline is today, even in the 1d window", () => {
+    // The public form allows a deadline of today, so this is reachable: the
+    // window is named "1d" but the subject used to claim "Due tomorrow".
+    expect(reminderSubject("1d", "A swap", DUE, new Date("2026-10-05T15:00:00Z"))).toContain("Due today");
+  });
+
+  it("says tomorrow only when it really is tomorrow", () => {
+    expect(reminderSubject("1d", "A swap", DUE, new Date("2026-10-04T15:00:00Z"))).toContain("Due tomorrow");
+  });
+
+  it("says in 2 days inside the 3d window rather than claiming 3", () => {
+    expect(reminderSubject("3d", "A swap", DUE, new Date("2026-10-03T15:00:00Z"))).toContain("in 2 days");
+  });
+
+  it("still says in 3 days at the top of that window", () => {
+    expect(reminderSubject("3d", "A swap", DUE, new Date("2026-10-02T15:00:00Z"))).toContain("in 3 days");
+  });
+
+  it("ignores the day count when overdue", () => {
+    expect(reminderSubject("overdue", "A swap", DUE, new Date("2026-10-09T15:00:00Z"))).toContain("Overdue");
   });
 });

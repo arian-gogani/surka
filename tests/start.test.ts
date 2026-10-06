@@ -51,7 +51,7 @@ describe("public swap start", () => {
     await respond(db, b, { decision: "accept" }, new Date("2026-10-05T15:00:00Z"));
     const sent: string[] = [];
     const run = await runReminders(db, async (message) => { sent.push(message.to); }, new Date("2026-10-05T15:00:00Z"));
-    expect(run).toEqual({ sent: 1, skipped: 1, failed: 0 });
+    expect(run).toMatchObject({ sent: 1, skipped: 1, failed: 0 });
     expect(sent).toEqual(["editor@first.example"]);
   });
 });

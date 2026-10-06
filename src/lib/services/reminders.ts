@@ -3,15 +3,22 @@ import { alias } from "drizzle-orm/pg-core";
 import type { Db } from "@/db/client";
 import { commitments, parties, remindersSent, swapAccess, swaps, type ReminderKind } from "@/db/schema";
 import { formatDate, relativeDue } from "../dates";
-import type { EmailSender } from "../email";
+import type { EmailProvider, EmailSender } from "../email";
 import { appUrl } from "../env";
 import { dueReminderKind, reminderSubject } from "../reminders";
 
 export interface ReminderRun {
+  /**
+   * Handed to the sender without throwing. With provider "log" that means
+   * written to the server log, not delivered to anyone, and the reminder is
+   * still recorded as used. Setting RESEND_API_KEY later does not backfill it.
+   */
   sent: number;
-  /** Due a reminder, but the side has no email on file. */
+  /** Due a reminder, but the side has no email on file. Recounted every run. */
   skipped: number;
   failed: number;
+  /** "log" until RESEND_API_KEY is set, so the two runs are distinguishable. */
+  provider: EmailProvider;
 }
 
 /**
@@ -35,7 +42,8 @@ export async function runReminders(db: Db, send: EmailSender, now = new Date()):
     .innerJoin(pb, eq(pb.id, swaps.partyBId))
     .where(and(eq(swaps.status, "accepted"), eq(commitments.status, "pending")));
 
-  const run: ReminderRun = { sent: 0, skipped: 0, failed: 0 };
+  const provider: EmailProvider = "provider" in send ? (send.provider as EmailProvider) : "resend";
+  const run: ReminderRun = { sent: 0, skipped: 0, failed: 0, provider };
   if (rows.length === 0) return run;
 
   const ids = rows.map((r) => r.commitment.id);
@@ -70,7 +78,7 @@ export async function runReminders(db: Db, send: EmailSender, now = new Date()):
     try {
       await send({
         to: party.email,
-        subject: reminderSubject(kind, row.swapTitle),
+        subject: reminderSubject(kind, row.swapTitle, commitment.dueDate, now),
         text: reminderText({
           kind,
           name: party.contactName ?? party.name,
@@ -84,8 +92,14 @@ export async function runReminders(db: Db, send: EmailSender, now = new Date()):
       run.sent += 1;
     } catch (error) {
       console.error(`Reminder for commitment ${commitment.id} failed`, error);
-      // Release the claim so the next run retries.
-      await db.delete(remindersSent).where(eq(remindersSent.id, claim.id));
+      try {
+        // Release the claim so the next run retries. If this also fails, the
+        // claim simply stands: one skipped reminder beats losing the whole run
+        // and the record of everything already sent in it.
+        await db.delete(remindersSent).where(eq(remindersSent.id, claim.id));
+      } catch (releaseError) {
+        console.error(`Could not release the reminder claim for ${commitment.id}`, releaseError);
+      }
       run.failed += 1;
     }
   }

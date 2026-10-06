@@ -20,13 +20,15 @@ export function dueReminderKind(
   return null;
 }
 
-export function reminderSubject(kind: ReminderKind, swapTitle: string): string {
-  switch (kind) {
-    case "3d":
-      return `Due in 3 days: your part of "${swapTitle}"`;
-    case "1d":
-      return `Due tomorrow: your part of "${swapTitle}"`;
-    case "overdue":
-      return `Overdue: your part of "${swapTitle}"`;
-  }
+/**
+ * The windows above are ranges, so the kind is not a day count. Reading the
+ * remaining days directly stops a subject saying "Due tomorrow" above a body
+ * that says today, which happens whenever a swap is agreed inside its own
+ * window: the public form allows a deadline as soon as today.
+ */
+export function reminderSubject(kind: ReminderKind, swapTitle: string, dueDate: string, now: Date): string {
+  if (kind === "overdue") return `Overdue: your part of "${swapTitle}"`;
+  const days = daysUntil(dueDate, now);
+  const when = days <= 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`;
+  return `Due ${when}: your part of "${swapTitle}"`;
 }
