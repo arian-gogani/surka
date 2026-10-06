@@ -17,6 +17,7 @@ import {
   markDelivered,
   markProposed,
   partyRecord,
+  partyRecords,
   partyForToken,
   recordClick,
   replaceCommitments,
@@ -190,6 +191,12 @@ describe("delivery and checking", () => {
     const newsletterRecord = await partyRecord(db, newsletter.id, NOW);
     expect(appRecord).toMatchObject({ kept: 1, resolved: 1 });
     expect(newsletterRecord).toMatchObject({ kept: 0, resolved: 1 });
+
+    // The businesses page reads every record in one query. It has to agree
+    // with the per-party version, including which side owns a commitment.
+    const batched = await partyRecords(db, NOW);
+    expect(batched.get(app.id)).toEqual(appRecord);
+    expect(batched.get(newsletter.id)).toEqual(newsletterRecord);
 
     await expectSurka(cancelSwap(db, swap.id, "too late", NOW), "conflict");
   });

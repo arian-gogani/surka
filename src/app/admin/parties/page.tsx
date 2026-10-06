@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { AdminShell } from "@/components/admin-shell";
 import { Button, Field } from "@/components/ui";
 import { getDb } from "@/db/client";
-import { describeRecord } from "@/lib/reputation";
+import { describeRecord, NO_RECORD } from "@/lib/reputation";
 import { KIND_LABEL } from "@/lib/present";
-import { listParties, partyRecord } from "@/lib/services/swaps";
+import { listParties, partyRecords } from "@/lib/services/swaps";
 import { createPartyAction } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -13,8 +13,7 @@ export const metadata: Metadata = { title: "Businesses", robots: { index: false 
 export default async function PartiesPage({ searchParams }: { searchParams: Promise<{ error?: string; ok?: string }> }) {
   const { error, ok } = await searchParams;
   const db = await getDb();
-  const parties = await listParties(db);
-  const records = await Promise.all(parties.map((p) => partyRecord(db, p.id)));
+  const [parties, records] = await Promise.all([listParties(db), partyRecords(db)]);
 
   return (
     <AdminShell error={error} ok={ok}>
@@ -27,11 +26,11 @@ export default async function PartiesPage({ searchParams }: { searchParams: Prom
             </p>
           ) : (
             <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-white">
-              {parties.map((p, i) => (
+              {parties.map((p) => (
                 <li key={p.id} className="px-5 py-4">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <p className="font-medium">{p.name}</p>
-                    <p className="text-[13px] text-muted">{describeRecord(records[i]!)}</p>
+                    <p className="text-[13px] text-muted">{describeRecord(records.get(p.id) ?? NO_RECORD)}</p>
                   </div>
                   <p className="mt-0.5 text-[13px] text-muted">
                     {[KIND_LABEL[p.kind], p.contactName, p.email].filter(Boolean).join(", ")}

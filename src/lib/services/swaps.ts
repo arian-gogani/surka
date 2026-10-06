@@ -26,7 +26,7 @@ import {
 } from "@/db/schema";
 import { SurkaError } from "../errors";
 import { newAccessToken, newTrackingCode } from "../ids";
-import { computeRecord, type TrackRecord } from "../reputation";
+import { type CheckedCommitment, computeRecord, type TrackRecord } from "../reputation";
 import {
   allResolved,
   assertTransition,
@@ -145,6 +145,36 @@ export async function partyRecord(db: Db, partyId: string, now = new Date()): Pr
       ),
     );
   return computeRecord(rows, now);
+}
+
+/**
+ * Every party's record in one query.
+ *
+ * The businesses page needs a record per row, and asking per party meant one
+ * round trip per business on a page whose whole job is to list them. The work
+ * is the same scan either way, so do it once and bucket the rows in memory.
+ */
+export async function partyRecords(db: Db, now = new Date()): Promise<Map<string, TrackRecord>> {
+  const rows = await db
+    .select({
+      status: commitments.status,
+      verifiedAt: commitments.verifiedAt,
+      side: commitments.side,
+      partyAId: swaps.partyAId,
+      partyBId: swaps.partyBId,
+    })
+    .from(commitments)
+    .innerJoin(swaps, eq(swaps.id, commitments.swapId));
+
+  const byParty = new Map<string, CheckedCommitment[]>();
+  for (const row of rows) {
+    // A commitment belongs to whichever side promised it.
+    const partyId = row.side === "a" ? row.partyAId : row.partyBId;
+    const bucket = byParty.get(partyId);
+    if (bucket) bucket.push(row);
+    else byParty.set(partyId, [row]);
+  }
+  return new Map([...byParty].map(([partyId, items]) => [partyId, computeRecord(items, now)]));
 }
 
 // Swaps --------------------------------------------------------------------

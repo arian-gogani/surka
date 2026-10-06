@@ -68,7 +68,13 @@ export const swaps = pgTable(
     completedAt: timestamp("completed_at", { withTimezone: true }),
     closedAt: timestamp("closed_at", { withTimezone: true }),
   },
-  (t) => [index("swaps_status_idx").on(t.status)],
+  (t) => [
+    index("swaps_status_idx").on(t.status),
+    // Both sides of a swap are looked up by party: the businesses page walks
+    // every party's commitments through these two columns.
+    index("swaps_party_a_idx").on(t.partyAId),
+    index("swaps_party_b_idx").on(t.partyBId),
+  ],
 );
 
 /** Something one side promised to deliver, by a date. */

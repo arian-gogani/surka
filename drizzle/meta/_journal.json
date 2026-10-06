@@ -15,6 +15,13 @@
       "when": 1791042863146,
       "tag": "0001_event_sequence",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791310776849,
+      "tag": "0002_party_indexes",
+      "breakpoints": true
     }
   ]
 }

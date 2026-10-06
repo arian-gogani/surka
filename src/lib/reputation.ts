@@ -19,6 +19,9 @@ export interface TrackRecord {
   score: number | null;
 }
 
+/** A party nobody has checked yet. What computeRecord returns for no rows. */
+export const NO_RECORD: TrackRecord = { kept: 0, resolved: 0, score: null };
+
 /**
  * Reputation is kept commitments, never results: a partner controls whether
  * they deliver, not whether an audience clicks. Older outcomes fade so one
