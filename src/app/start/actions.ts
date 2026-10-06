@@ -6,29 +6,32 @@ import { getDb } from "@/db/client";
 import { messageFor } from "@/lib/errors";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { createParty, createSwap, partyForToken } from "@/lib/services/swaps";
+import { START_FIELDS, type StartField, type StartState } from "./state";
 
 /** Five swaps per address per hour: generous for a real founder, dull for a script. */
 const LIMIT = 5;
 const WINDOW_MS = 60 * 60 * 1000;
 
-function back(params: Record<string, string>): never {
-  redirect(`/start?${new URLSearchParams(params)}`);
-}
-
 /**
- * The public path into a swap. Creates both businesses, the swap and its two
- * commitments, then marks it proposed so the partner's link is live
- * immediately. The operator still sees it in the dashboard like any other.
+ * The public path into a swap. Creates both businesses, then the swap and its
+ * two commitments, proposed from the start so the partner's link is live.
+ *
+ * Returns rather than redirecting on failure. Redirecting threw away what they
+ * had typed, and this form has eleven fields: one rejected date meant retyping
+ * both businesses, both deliverables and the title. useActionState keeps the
+ * values without JavaScript too, so the no-JS path still works.
  */
-export async function startSwapAction(formData: FormData) {
+export async function startSwapAction(_previous: StartState, formData: FormData): Promise<StartState> {
+  const field = (name: StartField) => String(formData.get(name) ?? "").trim();
+  const values = Object.fromEntries(START_FIELDS.map((name) => [name, field(name)])) as StartState["values"];
+  const fail = (error: string): StartState => ({ error, values });
+
   const limit = rateLimit(clientKey(await headers()), LIMIT, WINDOW_MS);
   if (!limit.ok) {
-    back({ error: `That's a few too many swaps at once. Try again in ${limit.retryAfterSeconds} seconds.` });
+    return fail(`That's a few too many swaps at once. Try again in ${limit.retryAfterSeconds} seconds.`);
   }
 
-  const field = (name: string) => String(formData.get(name) ?? "").trim();
   let tokens: { a: string; b: string };
-
   try {
     const db = await getDb();
     // Holding a link from an earlier swap proves which business you are, so
@@ -49,9 +52,6 @@ export async function startSwapAction(formData: FormData) {
       }),
     ]);
 
-    // Proposed inside the same transaction. As a separate call afterwards, a
-    // failure in between left a swap whose tokens existed but were never shown,
-    // which nobody could ever reach again.
     const created = await createSwap(
       db,
       {
@@ -67,7 +67,7 @@ export async function startSwapAction(formData: FormData) {
     );
     tokens = created.tokens;
   } catch (error) {
-    back({ error: messageFor(error) });
+    return fail(messageFor(error));
   }
 
   redirect(`/start/sent?a=${tokens.a}&b=${tokens.b}`);

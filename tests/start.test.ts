@@ -16,6 +16,7 @@ vi.mock("@/db/client", async (importOriginal) => ({
 }));
 
 import { startSwapAction } from "@/app/start/actions";
+import { EMPTY_START } from "@/app/start/state";
 
 beforeAll(async () => { db = await createPgliteDb(); });
 beforeEach(async () => {
@@ -39,7 +40,9 @@ describe("public swap start", () => {
     })) form.set(key, value);
 
     let target = "";
-    try { await startSwapAction(form); } catch (error) { target = String(error); }
+    // The action takes the previous state first now, so a rejected submit can
+    // hand back what was typed instead of wiping an eleven-field form.
+    try { await startSwapAction(EMPTY_START, form); } catch (error) { target = String(error); }
     expect(target).toMatch(/^Error: REDIRECT:\/start\/sent\?/);
     const url = new URL(target.slice("Error: REDIRECT:".length), "http://localhost");
     const a = url.searchParams.get("a") ?? "";
@@ -53,5 +56,31 @@ describe("public swap start", () => {
     const run = await runReminders(db, async (message) => { sent.push(message.to); }, new Date("2026-10-05T15:00:00Z"));
     expect(run).toMatchObject({ sent: 1, skipped: 1, failed: 0 });
     expect(sent).toEqual(["editor@first.example"]);
+  });
+});
+
+describe("a rejected submit keeps what was typed", () => {
+  it("hands every field back instead of wiping the form", async () => {
+    const form = new FormData();
+    for (const [key, value] of Object.entries({
+      title: "A swap worth keeping",
+      yourName: "First Weekly",
+      yourKind: "newsletter",
+      yourGive: "A dedicated placement in our next issue",
+      yourDue: "2026-10-08",
+      partnerName: "Second Weekly",
+      partnerKind: "newsletter",
+      partnerGive: "A dedicated placement in their next issue",
+      // Not a real date, so the server rejects it after the browser is bypassed.
+      partnerDue: "not-a-date",
+    })) form.set(key, value);
+
+    const state = await startSwapAction(EMPTY_START, form);
+    expect(state.error).toBeTruthy();
+    // Everything they typed comes back, including the eight good fields.
+    expect(state.values.title).toBe("A swap worth keeping");
+    expect(state.values.yourGive).toBe("A dedicated placement in our next issue");
+    expect(state.values.partnerName).toBe("Second Weekly");
+    expect(state.values.partnerKind).toBe("newsletter");
   });
 });
