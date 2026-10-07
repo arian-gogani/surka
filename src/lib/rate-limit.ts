@@ -45,7 +45,10 @@ function sweep(now: number): void {
  * than going unlimited.
  */
 export function clientKey(headers: Headers): string {
-  const trusted = headers.get("x-vercel-forwarded-for")?.trim();
+  // Only on the platform that sets it. Off Vercel this is just another header
+  // the caller can write, so trusting it unconditionally would hand out a
+  // fresh bucket per request and remove the limiter entirely.
+  const trusted = process.env.VERCEL ? headers.get("x-vercel-forwarded-for")?.trim() : null;
   if (trusted) return trusted;
   const chain = headers.get("x-forwarded-for")?.split(",") ?? [];
   const last = chain[chain.length - 1]?.trim();

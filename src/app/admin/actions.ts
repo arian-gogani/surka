@@ -63,10 +63,25 @@ function partyFields(formData: FormData) {
 const LOGIN_LIMIT = 10;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 
+/**
+ * A ceiling across every address at once.
+ *
+ * Per-address throttling does nothing to a guesser spread over many
+ * addresses, and there is exactly one password and one person who needs it.
+ * Fifty failures an hour is far above any real mistyping and far below a
+ * useful guessing rate.
+ */
+const LOGIN_TOTAL = 50;
+
 export async function loginAction(formData: FormData) {
   const limit = rateLimit(`login:${clientKey(await headers())}`, LOGIN_LIMIT, LOGIN_WINDOW_MS);
-  if (!limit.ok) {
-    go("/admin/login", { error: `Too many attempts. Try again in ${limit.retryAfterSeconds} seconds.` });
+  const global = rateLimit("login:everyone", LOGIN_TOTAL, LOGIN_WINDOW_MS);
+  if (!limit.ok || !global.ok) {
+    const retry = Math.max(
+      limit.ok ? 0 : limit.retryAfterSeconds,
+      global.ok ? 0 : global.retryAfterSeconds,
+    );
+    go("/admin/login", { error: `Too many attempts. Try again in ${retry} seconds.` });
   }
 
   const password = String(formData.get("password") ?? "");

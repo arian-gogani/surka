@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { z } from "zod";
 import type { Db } from "@/db/client";
@@ -372,7 +372,15 @@ export async function pendingListings(db: Db, now = new Date()): Promise<Listing
       listedAt: parties.listingRequestedAt,
     })
     .from(parties)
-    .where(and(isNotNull(parties.listingRequestedAt), isNull(parties.listedAt)))
+    .where(
+      and(
+        isNotNull(parties.listingRequestedAt),
+        // Never approved, or rewritten since it was. An approved listing whose
+        // text has been replaced is unreviewed text on a public page, which is
+        // the thing this queue exists to prevent.
+        or(isNull(parties.listedAt), gt(parties.listingRequestedAt, parties.listedAt)),
+      ),
+    )
     .orderBy(asc(parties.listingRequestedAt));
   const records = await partyRecords(db, now);
   return rows.map((row) => ({

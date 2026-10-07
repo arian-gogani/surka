@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, eq, gt, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { commitments, parties, results, swaps, type ResultMetric, type SwapStatus } from "@/db/schema";
 import { DAY_MS } from "../dates";
@@ -12,8 +12,10 @@ export interface PilotMetrics {
   checkedCommitments: number;
   /** Accepted ÷ answered proposals. */
   acceptanceRate: number | null;
-  /** Average operator minutes per completed swap. */
+  /** Average operator minutes, over completed swaps where time was logged. */
   minutesPerCompletedSwap: number | null;
+  /** How many that average covers, so missing data reads as missing. */
+  swapsWithTimeLogged: number;
   /** Businesses that agreed to more than one swap. */
   repeatParties: number;
   /**
@@ -81,9 +83,16 @@ export async function pilotMetrics(db: Db, now = new Date()): Promise<PilotMetri
       .where(inArray(commitments.status, ["kept", "missed"]))
       .groupBy(commitments.status),
     db
-      .select({ avg: sql<number | null>`avg(${swaps.operatorMinutes})::float` })
+      // Only swaps where time was actually logged. operatorMinutes defaults to
+      // zero, so averaging over all completed swaps counted every swap the
+      // operator forgot to log as a swap that took no time, and this is the
+      // number used to decide what is worth automating.
+      .select({
+        avg: sql<number | null>`avg(${swaps.operatorMinutes})::float`,
+        logged: sql<number>`count(*)::int`,
+      })
       .from(swaps)
-      .where(eq(swaps.status, "completed")),
+      .where(and(eq(swaps.status, "completed"), sql`${swaps.operatorMinutes} > 0`)),
     db.execute<{ n: number }>(sql`
       select count(*)::int as n from (
         select party_id from (
@@ -124,7 +133,12 @@ export async function pilotMetrics(db: Db, now = new Date()): Promise<PilotMetri
     db
       .select({ n: sql<number>`count(*)::int` })
       .from(parties)
-      .where(and(isNotNull(parties.listingRequestedAt), isNull(parties.listedAt))),
+      .where(
+        and(
+          isNotNull(parties.listingRequestedAt),
+          or(isNull(parties.listedAt), gt(parties.listingRequestedAt, parties.listedAt)),
+        ),
+      ),
     // One row per side of a live swap that has a deadline left and nobody to
     // send it to. Counted per side, not per commitment, because the fix is one
     // address either way.
@@ -163,6 +177,7 @@ export async function pilotMetrics(db: Db, now = new Date()): Promise<PilotMetri
     checkedCommitments: checked,
     acceptanceRate: answered === 0 ? null : accepted / answered,
     minutesPerCompletedSwap: minutesRows[0]?.avg ?? null,
+    swapsWithTimeLogged: minutesRows[0]?.logged ?? 0,
     repeatParties: Number(repeatRows[0]?.n ?? 0),
     swapsFullyKept: Number(keptRows[0]?.n ?? 0),
     completedSwaps: swapsByStatus.completed,

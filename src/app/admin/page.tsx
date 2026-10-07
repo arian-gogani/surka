@@ -45,7 +45,10 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     {
       label: "Your time per swap",
       value: metrics.minutesPerCompletedSwap === null ? "None yet" : `${Math.round(metrics.minutesPerCompletedSwap)} min`,
-      note: "Average over completed swaps",
+      note:
+        metrics.completedSwaps === 0
+          ? "Log your time on each swap"
+          : `Over ${metrics.swapsWithTimeLogged} of ${metrics.completedSwaps} completed, where you logged it`,
     },
     { label: "Back for another", value: String(metrics.repeatParties), note: "Businesses with 2+ agreed swaps" },
   ];

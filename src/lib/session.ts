@@ -23,11 +23,25 @@ function sessionSecret(): string | null {
   return secret && secret.length >= 16 ? secret : null;
 }
 
+/**
+ * The signing key, bound to the current password.
+ *
+ * The signature used to cover only the expiry, so a cookie value that leaked
+ * anywhere stayed valid for its full fortnight: signing out only deleted the
+ * browser's copy, and changing the password did nothing either, because the
+ * password was not part of what was signed. Mixing it in makes rotating the
+ * password a sign-out everywhere, which is the one recovery action an operator
+ * with no session store can actually take.
+ */
+function signingKey(secret: string): string {
+  return `${secret}:${process.env.ADMIN_PASSWORD ?? ""}`;
+}
+
 export async function createSessionValue(nowMs = Date.now()): Promise<string> {
   const secret = sessionSecret();
   if (!secret) throw new Error("Set SESSION_SECRET (16+ characters) to enable the dashboard.");
   const expires = Math.floor(nowMs / 1000) + SESSION_TTL_SECONDS;
-  return `${expires}.${await hmac(secret, `operator:${expires}`)}`;
+  return `${expires}.${await hmac(signingKey(secret), `operator:${expires}`)}`;
 }
 
 /** Constant-time comparison for equal-length hex strings. */
@@ -44,7 +58,7 @@ export async function verifySessionValue(value: string | undefined, nowMs = Date
   const [expiresRaw, signature] = value.split(".");
   const expires = Number(expiresRaw);
   if (!signature || !Number.isInteger(expires) || expires * 1000 < nowMs) return false;
-  return sameHex(signature, await hmac(secret, `operator:${expires}`));
+  return sameHex(signature, await hmac(signingKey(secret), `operator:${expires}`));
 }
 
 /** Checks the operator password without leaking its length through timing. */

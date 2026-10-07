@@ -414,6 +414,26 @@ describe("the partner list", () => {
     expect((await getParty(db, newsletter.id))?.offers).toContain("dedicated section");
   });
 
+  it("sends a rewritten listing back for review without taking it down", async () => {
+    // "Nothing is public until you approve it" was not true of an edit: an
+    // approved listing could be rewritten to anything, live, and never
+    // reappear in the queue.
+    const { newsletter, tokens } = await agreed();
+    const own = await claimParty(db, tokens.b);
+    // NOW explicitly: setListed defaults to the real clock, which is later
+    // than the fixture's NOW and would look like an edit made after approval.
+    await setListed(db, own, { listed: "yes", offers: "A dedicated section", needs: "A tool for my readers" }, NOW);
+    await approveListing(db, newsletter.id, NOW);
+    expect(await pendingListings(db, NOW)).toEqual([]);
+
+    const later = new Date(NOW.getTime() + 60_000);
+    await setListed(db, own, { listed: "yes", offers: "Buy followers at spam.example", needs: "Anyone at all" }, later);
+    expect((await pendingListings(db, later)).map((l) => l.id)).toEqual([newsletter.id]);
+    // Still public, because taking a live listing down over an edit punishes
+    // the honest case. It is back in front of a person, which is the point.
+    expect((await listListings(db, later)).map((l) => l.id)).toEqual([newsletter.id]);
+  });
+
   it("will not approve a business that never asked", async () => {
     const { newsletter } = await agreed();
     await expectSurka(approveListing(db, newsletter.id, NOW), "not_found");
