@@ -3,26 +3,36 @@ import { DealSheet } from "@/components/deal-sheet";
 import { Logo, Mark } from "@/components/logo";
 import { contactEmail } from "@/lib/env";
 
+/**
+ * Only things the code does today.
+ *
+ * Three of these described work that does not exist: drafting copy and assets
+ * (no such table, no such screen), a closing report (nothing sends one), and a
+ * tracking link on every placement (only the operator can create one, so a
+ * self-serve swap never gets one). A founder can check all three inside a
+ * single swap and find them missing, which is worse than promising less, and
+ * it was on the one page whose job is to make the thing look real.
+ */
 const STEPS = [
   {
     title: "Writes the deal sheet",
     body: "What each side gives, and by when, on one page. Your partner can accept, suggest changes, or decline without making an account.",
   },
   {
-    title: "Drafts the copy and assets",
-    body: "The blurb, the image, the link. You approve them once.",
+    title: "Holds the dates",
+    body: "Each deadline sits on the deal sheet where both sides can see it, and neither side can quietly move it.",
   },
   {
-    title: "Tracks the follow-up",
-    body: "Dates stay on the deal sheet. During the first pilot, we'll follow up with both sides manually; automated email delivery is not live yet.",
+    title: "Chases both sides",
+    body: "Three days before each deadline, one day before, and once if it passes. While the pilot runs we do some of that chasing by hand.",
   },
   {
     title: "Checks that it happened",
-    body: "Against the newsletter archive, the live listing, or a screenshot. Each side's delivery is checked, not assumed.",
+    body: "Against the newsletter archive, the live listing, or a screenshot. Each side's delivery is checked, not assumed, and what gets checked becomes your record.",
   },
   {
-    title: "Shows what it produced",
-    body: "A tracking link or code on every placement, and a short report to both sides when the swap closes.",
+    title: "Keeps the record",
+    body: "Kept and missed commitments, visible on your listing. It is the one thing about you that you can't write yourself.",
   },
 ];
 
@@ -63,9 +73,9 @@ export default function Home() {
               Partner swaps that actually happen.
             </h1>
             <p className="mt-6 max-w-prose text-lg leading-relaxed text-muted">
-              You and another founder agree to promote each other. Then the swap stalls: nobody owns
-              the dates, the assets go missing, and nobody follows up. Surka runs it for you, from yes
-              to results.
+              You and another founder agree to promote each other. Then the swap stalls: nobody owns the
+              dates, nobody checks the other side shipped, and nobody follows up. Surka writes it down,
+              holds both of you to the dates, and checks each part actually happened.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <a
@@ -114,8 +124,8 @@ export default function Home() {
             <div className="max-w-2xl">
               <h2 className="text-3xl font-semibold sm:text-4xl">What Surka does after you say yes</h2>
               <p className="mt-4 text-lg leading-relaxed text-muted">
-                Most swaps die for boring reasons. The terms are vague, nobody owns the timeline, assets
-                go missing, tracking is a mess, and nobody follows up. Each step below removes one of those.
+                Most swaps die for boring reasons. The terms are vague, nobody owns the timeline, nobody
+                checks the other side shipped, and nobody follows up. Each step below removes one of those.
               </p>
             </div>
             <ol className="mt-12 grid gap-x-10 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
@@ -132,6 +142,28 @@ export default function Home() {
                 </li>
               ))}
             </ol>
+
+            {/*
+              The question every sceptic has and no page answered. The product
+              asks for a dated commitment from someone with no account, no
+              contract and no money at stake, and repeated "we hold both sides
+              to it" on four pages without once saying by what. Saying what the
+              answer actually is beats letting them guess that there is one.
+            */}
+            <div className="mt-16 max-w-prose rounded-xl border border-line bg-white px-6 py-7">
+              <h3 className="text-xl font-semibold">What if they just don&apos;t deliver?</h3>
+              <p className="mt-3 leading-relaxed text-muted">
+                Then nothing makes them. There is no contract here and no money held, and we would rather say
+                that than let you find out. What there is: a deadline neither side can quietly move, a nudge
+                before it and after it, and a check against real proof, so a miss is a miss on the record
+                rather than an argument about what was agreed.
+              </p>
+              <p className="mt-3 leading-relaxed text-muted">
+                That record is the only thing with teeth, and it is why the first swap is the one that costs
+                you something. Start with a placement you would not mind losing, with someone whose record you
+                can read.
+              </p>
+            </div>
           </div>
         </section>
 

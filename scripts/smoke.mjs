@@ -125,6 +125,20 @@ async function run() {
   console.log("Public pages");
   const home = await get("/");
   check(home.status === 200 && visible(home.html).includes("Partner swaps that actually happen"), "landing page renders");
+  // Claims the code does not support have crept onto this page twice. These
+  // are the three that were there, each describing a table or a sender that
+  // does not exist.
+  const promises = ["Drafts the copy and assets", "short report to both sides", "approve them once"];
+  check(
+    promises.every((claim) => !home.html.includes(claim)),
+    "the home page does not promise work the code cannot do",
+  );
+  check(
+    // Without the apostrophe: JSX writes it as &apos; in the HTML.
+    visible(home.html).includes("What if they just don") && home.html.includes("no money held"),
+    "the home page answers the objection it invites",
+  );
+
   const partners = await get("/partners");
   check(partners.status === 200 && visible(partners.html).includes("Nobody is listed yet"), "empty partner list renders");
   check((await get("/list")).status === 200, "the public listing form renders");
