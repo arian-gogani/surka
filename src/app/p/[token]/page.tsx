@@ -6,6 +6,7 @@ import { Logo } from "@/components/logo";
 import { Button, ButtonLink, Field, Notice, StatusPill } from "@/components/ui";
 import { getDb } from "@/db/client";
 import { appUrl, contactEmail } from "@/lib/env";
+import { verifyNotice } from "@/lib/notice";
 import { KIND_LABEL } from "@/lib/present";
 import { describeRecord } from "@/lib/reputation";
 import { getListingForToken } from "@/lib/services/swaps";
@@ -22,12 +23,17 @@ export const metadata: Metadata = {
 
 type Props = {
   params: Promise<{ token: string }>;
-  searchParams: Promise<{ error?: string; ok?: string }>;
+  searchParams: Promise<{ error?: string; ok?: string; s?: string }>;
 };
 
 export default async function ListingPage({ params, searchParams }: Props) {
   const { token } = await params;
-  const { error, ok } = await searchParams;
+  const query = await searchParams;
+  // Signed by this deployment, or not shown. See the comment on /d/[token].
+  const [error, ok] = await Promise.all([
+    verifyNotice(query.error, query.s),
+    verifyNotice(query.ok, query.s),
+  ]);
   const view = await getListingForToken(await getDb(), token);
   if (!view) notFound();
 

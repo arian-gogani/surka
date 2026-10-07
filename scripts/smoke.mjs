@@ -92,6 +92,18 @@ async function submit(pathname, marker, fields) {
   return { status: res.status, location: res.headers.get("location") ?? "", body: await res.text() };
 }
 
+/**
+ * The rendered document, without the RSC payload.
+ *
+ * Next inlines the flight data in <script> tags in the same document, and that
+ * data contains the page's props, so a searchParams value appears in the HTML
+ * whether or not anything rendered it. Asserting on raw HTML therefore cannot
+ * tell "shown to the user" from "passed to the component and dropped".
+ */
+function visible(html) {
+  return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "");
+}
+
 function query(location, key) {
   return new URL(location, BASE).searchParams.get(key);
 }
@@ -338,6 +350,13 @@ async function run() {
   check(!(await get("/partners")).html.includes("Receipt Butler"), "a removed listing leaves the public list");
   // Delisting is not deleting: the link has to still work or they can never return.
   check((await get(managePath)).status === 200, "the private link still works after removal");
+
+  // The proposer legitimately holds the partner's link in the normal flow, so
+  // they can hand over a URL carrying any copy they like unless it is signed.
+  const forged = await get(`/d/${partnerToken}?ok=${encodeURIComponent("Wire the fee to keep this swap.")}`);
+  check(!visible(forged.html).includes("Wire the fee"), "an unsigned banner is not rendered");
+  const real = await get(`/d/${partnerToken}`);
+  check(real.status === 200 && forged.status === 200, "dropping the banner does not break the page");
 
   console.log("Operator moderation of the public list");
   const relisted = await submit(managePath, 'name="needs"', {

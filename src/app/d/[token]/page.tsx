@@ -9,6 +9,7 @@ import type { Commitment, Side } from "@/db/schema";
 import { formatDate, relativeDue } from "@/lib/dates";
 import { appUrl, contactEmail } from "@/lib/env";
 import { SurkaError } from "@/lib/errors";
+import { verifyNotice } from "@/lib/notice";
 import { sheetSide } from "@/lib/present";
 import { getSwapForToken, type SideView } from "@/lib/services/swaps";
 import { otherSide } from "@/lib/swap-rules";
@@ -24,12 +25,20 @@ export const metadata: Metadata = {
 
 type Props = {
   params: Promise<{ token: string }>;
-  searchParams: Promise<{ error?: string; ok?: string }>;
+  searchParams: Promise<{ error?: string; ok?: string; s?: string }>;
 };
 
 export default async function SwapLinkPage({ params, searchParams }: Props) {
   const { token } = await params;
-  const { error, ok } = await searchParams;
+  const query = await searchParams;
+  // Only this deployment's own words. Anything else in these parameters is
+  // dropped: in the normal flow the proposer holds the partner's link, so they
+  // could hand over a URL carrying whatever first-party-looking copy they
+  // liked, on a page the reader has no other way to judge.
+  const [error, ok] = await Promise.all([
+    verifyNotice(query.error, query.s),
+    verifyNotice(query.ok, query.s),
+  ]);
 
   let view: SideView;
   try {

@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
 import { messageFor } from "@/lib/errors";
+import { signNotice } from "@/lib/notice";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { createListing } from "@/lib/services/swaps";
 import { LIST_FIELDS, type ListField, type ListState } from "./state";
@@ -46,5 +47,8 @@ export async function createListingAction(_previous: ListState, formData: FormDa
   // Straight to the page the link opens, rather than a one-time confirmation
   // screen. The link is in the address bar from here on, which is the one place
   // someone might actually keep it.
-  redirect(`/p/${token}?ok=${encodeURIComponent("You're on the partner list. Keep this page's link: it's how you edit or remove your listing.")}`);
+  const signed = await signNotice({
+    ok: "You're on the partner list. Keep this page's link: it's how you edit or remove your listing.",
+  });
+  redirect(`/p/${token}?${new URLSearchParams(signed)}`);
 }

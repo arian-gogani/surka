@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { signNotice, verifyNotice } from "@/lib/notice";
 import { constantTimeEquals } from "@/lib/compare";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 
@@ -97,5 +98,40 @@ describe("constant time compare", () => {
 
   it("rejects empty against a real secret", () => {
     expect(constantTimeEquals("", "Bearer abc123")).toBe(false);
+  });
+});
+
+describe("result banners are the app's words, not a caller's", () => {
+  const SECRET = "smoke-session-secret-0123456789";
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("round-trips a message it signed", async () => {
+    vi.stubEnv("SESSION_SECRET", SECRET);
+    const signed = await signNotice({ ok: "Swap accepted. Your dates are below." });
+    expect(await verifyNotice(signed.ok, signed.s)).toBe("Swap accepted. Your dates are below.");
+  });
+
+  it("drops a message nobody signed", async () => {
+    vi.stubEnv("SESSION_SECRET", SECRET);
+    // In the normal flow the proposer holds the partner's link, so they can
+    // hand over a URL with whatever first-party-looking copy they like.
+    expect(await verifyNotice("Wire the fee to restore this swap.", undefined)).toBeNull();
+    expect(await verifyNotice("Wire the fee to restore this swap.", "0".repeat(20))).toBeNull();
+  });
+
+  it("drops a real signature attached to different words", async () => {
+    vi.stubEnv("SESSION_SECRET", SECRET);
+    const signed = await signNotice({ ok: "Saved. Your listing is live." });
+    expect(await verifyNotice("Your listing was removed for fraud.", signed.s)).toBeNull();
+  });
+
+  it("signs nothing, and so shows nothing, without a secret", async () => {
+    vi.stubEnv("SESSION_SECRET", "");
+    const signed = await signNotice({ ok: "Saved." });
+    expect(signed.s).toBeUndefined();
+    expect(await verifyNotice(signed.ok, signed.s)).toBeNull();
   });
 });

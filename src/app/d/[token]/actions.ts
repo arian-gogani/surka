@@ -4,10 +4,12 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
 import type { SwapStatus } from "@/db/schema";
 import { messageFor } from "@/lib/errors";
+import { signNotice } from "@/lib/notice";
 import { markDelivered, reportResult, respond, setListed, setSideEmail } from "@/lib/services/swaps";
 
-function backTo(token: string, params: Record<string, string>): never {
-  redirect(`/d/${encodeURIComponent(token)}?${new URLSearchParams(params)}`);
+async function backTo(token: string, params: { ok?: string; error?: string }): Promise<never> {
+  const signed = await signNotice(params);
+  redirect(`/d/${encodeURIComponent(token)}?${new URLSearchParams(signed)}`);
 }
 
 /**
@@ -44,9 +46,9 @@ export async function respondAction(formData: FormData) {
       email: formData.get("email"),
     });
   } catch (error) {
-    backTo(token, { error: messageFor(error) });
+    return backTo(token, { error: messageFor(error) });
   }
-  backTo(token, { ok: decided(status, email !== "") });
+  return backTo(token, { ok: decided(status, email !== "") });
 }
 
 export async function deliverAction(formData: FormData) {
@@ -56,9 +58,9 @@ export async function deliverAction(formData: FormData) {
       proofUrl: formData.get("proofUrl"),
     });
   } catch (error) {
-    backTo(token, { error: messageFor(error) });
+    return backTo(token, { error: messageFor(error) });
   }
-  backTo(token, { ok: "Marked delivered. We'll check it and let your partner know." });
+  return backTo(token, { ok: "Marked delivered. We'll check it and let your partner know." });
 }
 
 export async function reportResultAction(formData: FormData) {
@@ -70,9 +72,9 @@ export async function reportResultAction(formData: FormData) {
       note: formData.get("note"),
     });
   } catch (error) {
-    backTo(token, { error: messageFor(error) });
+    return backTo(token, { error: messageFor(error) });
   }
-  backTo(token, { ok: "Result saved. Only the two sides of this swap can see it." });
+  return backTo(token, { ok: "Result saved. Only the two sides of this swap can see it." });
 }
 
 export async function setEmailAction(formData: FormData) {
@@ -80,9 +82,9 @@ export async function setEmailAction(formData: FormData) {
   try {
     await setSideEmail(await getDb(), token, { email: formData.get("email") });
   } catch (error) {
-    backTo(token, { error: messageFor(error) });
+    return backTo(token, { error: messageFor(error) });
   }
-  backTo(token, { ok: "Saved. We'll remind you before each deadline." });
+  return backTo(token, { ok: "Saved. We'll remind you before each deadline." });
 }
 
 export async function setListedAction(formData: FormData) {
@@ -95,9 +97,9 @@ export async function setListedAction(formData: FormData) {
       needs: formData.get("needs"),
     });
   } catch (error) {
-    backTo(token, { error: messageFor(error) });
+    return backTo(token, { error: messageFor(error) });
   }
-  backTo(token, {
+  return backTo(token, {
     ok: listed
       ? "You're on the partner list. Founders can propose swaps to you from there."
       : "Taken off the partner list.",

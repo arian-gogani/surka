@@ -3,10 +3,12 @@
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
 import { messageFor } from "@/lib/errors";
+import { signNotice } from "@/lib/notice";
 import { setListed } from "@/lib/services/swaps";
 
-function backTo(token: string, params: Record<string, string>): never {
-  redirect(`/p/${encodeURIComponent(token)}?${new URLSearchParams(params)}`);
+async function backTo(token: string, params: { ok?: string; error?: string }): Promise<never> {
+  const signed = await signNotice(params);
+  redirect(`/p/${encodeURIComponent(token)}?${new URLSearchParams(signed)}`);
 }
 
 export async function updateListingAction(formData: FormData) {
@@ -21,9 +23,9 @@ export async function updateListingAction(formData: FormData) {
       needs: formData.get("needs"),
     });
   } catch (error) {
-    backTo(token, { error: messageFor(error) });
+    return backTo(token, { error: messageFor(error) });
   }
-  backTo(token, {
+  return backTo(token, {
     ok: listed ? "Saved. Your listing is live." : "Removed from the partner list. This link still works if you change your mind.",
   });
 }
