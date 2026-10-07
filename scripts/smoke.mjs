@@ -101,7 +101,15 @@ async function submit(pathname, marker, fields) {
  * tell "shown to the user" from "passed to the component and dropped".
  */
 function visible(html) {
-  return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "");
+  return (
+    html
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "")
+      // React separates two adjacent text nodes with an empty comment, so a
+      // sentence with a name or a number in the middle of it is not one string
+      // in the HTML, and an includes() for the sentence a reader sees never
+      // matches however right the page is.
+      .replaceAll("<!-- -->", "")
+  );
 }
 
 function query(location, key) {
@@ -231,6 +239,29 @@ async function run() {
   const redirect = await get(`/r/${code}`);
   check(redirect.status === 302 && redirect.location === "https://clinicscheduler.example/?ref=pmw", "tracking link redirects");
   check((await get(`/d/${partnerToken}`)).html.includes(`/r/${code}`), "partner sees its link for the placement");
+
+  const received = await get(`/d/${proposerToken}`);
+  check(
+    // The label and the count, which is the whole point: a side reporting
+    // signups could not tell what traffic the figure came off.
+    visible(received.html).includes("Clicks Practice Manager Weekly sent you") &&
+      visible(received.html).includes("Next issue") &&
+      visible(received.html).includes("1 click"),
+    "the other side sees what the placement drew",
+  );
+  // The raw HTML on purpose, not visible(): props reach the browser in the
+  // flight payload whether or not anything renders them, and a code is the
+  // placing side's to publish.
+  check(!received.html.includes(`/r/${code}`) && !received.html.includes(`"${code}"`), "but never its code");
+
+  const retired = await submit(swapPath, "Retire this link", {});
+  check(query(retired.location, "ok")?.startsWith("Link retired") ?? false, "operator retires a link");
+  check((await get(`/r/${code}`)).status === 404, "a retired link stops redirecting");
+  const afterRetire = await get(`/d/${partnerToken}`);
+  check(
+    !afterRetire.html.includes(`/r/${code}`) && visible(afterRetire.html).includes("has been retired"),
+    "the side that placed it is told, with nothing left to copy",
+  );
 
   console.log("Delivery, checking, and completion");
   const room = await get(`/d/${proposerToken}`);

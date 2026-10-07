@@ -391,7 +391,10 @@ function SwapRoom({
   const now = new Date();
   const mine = view.commitments.filter((c) => c.side === me);
   const theirs = view.commitments.filter((c) => c.side === them);
-  const myLinks = view.trackingLinks.filter((l) => l.side === me);
+  // Already only this side's own links, and only their labels and counts for
+  // the other side's. The split happens in the service because everything in
+  // `view` is serialised into this document whether or not it is rendered.
+  const myLinks = view.trackingLinks;
   const done = view.swap.status === "completed";
 
   return (
@@ -458,10 +461,59 @@ function SwapRoom({
                     {l.clicks} {l.clicks === 1 ? "click" : "clicks"}
                   </span>
                 </div>
-                {/* Labelled per placement: every tracking link produced a button
-                    called "Copy link", so a screen reader's button list showed N
-                    identical entries pointing at different URLs. */}
-                <CopyLink url={`${appUrl()}/r/${l.code}`} label={`Copy link for ${l.label}`} />
+                {l.retiredAt ? (
+                  // Retired links keep their row and lose their button. The
+                  // clicks are part of this swap's history, but handing back a
+                  // copy affordance for a URL that now 404s would get a dead
+                  // link published in the next issue.
+                  <p className="text-[14px] text-muted">
+                    This one has been retired and no longer works. Ask us for a replacement if the placement is
+                    still running.
+                  </p>
+                ) : (
+                  /* Labelled per placement: every tracking link produced a button
+                     called "Copy link", so a screen reader's button list showed N
+                     identical entries pointing at different URLs. */
+                  <CopyLink url={`${appUrl()}/r/${l.code}`} label={`Copy link for ${l.label}`} />
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {/*
+        The traffic this side received, which is the other half of the sum the
+        results form below asks for. Each side could see only the links it
+        placed, so a founder reporting 40 signups had no way to tell whether
+        that came off 60 clicks or 6,000, on a page that tells them these links
+        exist so both sides can see what the swap produced.
+
+        Labels and counts, with no code and nothing to copy. A code is the other
+        side's to publish: whoever holds it can send their own readers through
+        it, and every one of those clicks would land in this side's column as
+        traffic the other side sent them.
+      */}
+      {view.partnerPlacements.length > 0 ? (
+        <section aria-labelledby="received">
+          <h2 id="received" className="text-xl font-semibold">
+            Clicks {theirName} sent you
+          </h2>
+          <p className="mt-1 text-muted">
+            What {theirName}&apos;s placements drew, so you can weigh it against the results you report below.
+          </p>
+          <ul className="mt-4 divide-y divide-line overflow-hidden rounded-xl border border-line bg-white">
+            {view.partnerPlacements.map((p, i) => (
+              // Retiring and recreating a placement is how a wrong link is
+              // fixed, so two rows can honestly carry the same label.
+              <li
+                key={`${p.label}-${i}`}
+                className="flex flex-wrap items-baseline justify-between gap-2 px-5 py-3 text-[15px]"
+              >
+                <span className="font-medium">{p.label}</span>
+                <span className="num text-[13px] text-muted">
+                  {p.clicks} {p.clicks === 1 ? "click" : "clicks"}
+                </span>
               </li>
             ))}
           </ul>

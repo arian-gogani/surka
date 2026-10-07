@@ -38,6 +38,7 @@ import {
   replaceCommitments,
   reportResult,
   respond,
+  retireTrackingLink,
   verifyCommitment,
 } from "@/lib/services/swaps";
 
@@ -286,6 +287,15 @@ describe("delivery and checking", () => {
 });
 
 describe("tracking and results", () => {
+  /** A placement in the newsletter's own issue, pointing at the app. */
+  async function newsletterLink(swapId: string) {
+    return addTrackingLink(db, swapId, {
+      side: "b",
+      label: "Oct 17 issue",
+      destinationUrl: "https://clinicscheduler.example/?ref=pmw",
+    });
+  }
+
   it("counts clicks and redirects", async () => {
     const { swap } = await seedSwap();
     const link = await addTrackingLink(db, swap.id, {
@@ -307,6 +317,94 @@ describe("tracking and results", () => {
     expect((await getSwapDetail(db, swap.id)).trackingLinks[0]?.clicks).toBe(2);
     const view = await getSwapForToken(db, (await seedSwap()).tokens.a, NOW);
     expect(view.trackingLinks).toHaveLength(0);
+  });
+
+  it("stops a retired link redirecting, and stops it counting", async () => {
+    const { swap } = await seedSwap();
+    const link = await newsletterLink(swap.id);
+    await recordClick(db, link.code);
+
+    const retired = await retireTrackingLink(db, link.code, NOW);
+    expect(retired.retiredAt).toEqual(NOW);
+
+    // The printed URL is the only one real readers have, so retiring is the
+    // only thing that can make a wrong destination stop being followed. It
+    // used to keep redirecting forever, and keep counting while it did.
+    expect(await recordClick(db, link.code)).toBeNull();
+    expect(await destinationFor(db, link.code)).toBeNull();
+    expect((await getSwapDetail(db, swap.id)).trackingLinks[0]?.clicks).toBe(1);
+  });
+
+  it("keeps the clicks a retired link already had", async () => {
+    const { swap, tokens } = await seedSwap();
+    const link = await newsletterLink(swap.id);
+    await recordClick(db, link.code);
+    await recordClick(db, link.code);
+    await retireTrackingLink(db, link.code, NOW);
+
+    // Retiring is not undoing. Those two visits happened, and the figure is
+    // half of what both sides weigh when they decide whether to swap again.
+    expect((await getSwapDetail(db, swap.id)).trackingLinks[0]?.clicks).toBe(2);
+    expect((await getSwapForToken(db, tokens.b, NOW)).trackingLinks[0]?.clicks).toBe(2);
+  });
+
+  it("retires once however many times the operator asks, and refuses a code that isn't one", async () => {
+    const { swap } = await seedSwap();
+    const link = await newsletterLink(swap.id);
+    await retireTrackingLink(db, link.code, NOW);
+
+    const later = new Date(NOW.getTime() + 86_400_000);
+    const again = await retireTrackingLink(db, link.code, later);
+    // A double-tapped Retire must not move the moment the link stopped
+    // working, or write a second line into a timeline both sides read.
+    expect(again.retiredAt).toEqual(NOW);
+    const { events } = await getSwapDetail(db, swap.id);
+    expect(events.filter((e) => e.type === "link_retired")).toHaveLength(1);
+
+    await expectSurka(retireTrackingLink(db, "missing", NOW), "not_found");
+  });
+
+  it("stops a link redirecting once the swap is called off", async () => {
+    const { swap } = await seedSwap();
+    const link = await newsletterLink(swap.id);
+    await recordClick(db, link.code);
+    await cancelSwap(db, swap.id, "the partner went quiet", NOW);
+
+    // Nothing checked the swap, so a link from a deal that was called off kept
+    // sending real readers to an ex-partner's site, and kept adding to a
+    // figure the other side reads as traffic this swap produced.
+    expect(await recordClick(db, link.code)).toBeNull();
+    expect(await destinationFor(db, link.code)).toBeNull();
+    expect((await getSwapDetail(db, swap.id)).trackingLinks[0]?.clicks).toBe(1);
+  });
+
+  it("shows each side what the other side's placements drew, and never their codes", async () => {
+    const { swap, tokens } = await seedSwap();
+    const theirs = await newsletterLink(swap.id);
+    await recordClick(db, theirs.code);
+    await recordClick(db, theirs.code);
+    const mine = await addTrackingLink(db, swap.id, {
+      side: "a",
+      label: "In-app banner",
+      destinationUrl: "https://pmweekly.example/?ref=cs",
+    });
+
+    // Each side used to see only the links it placed, which measure what it
+    // sent. Without the other half neither could tell whether the signups they
+    // report came off sixty clicks or six thousand.
+    const a = await getSwapForToken(db, tokens.a, NOW);
+    expect(a.trackingLinks.map((l) => l.code)).toEqual([mine.code]);
+    expect(a.partnerPlacements).toEqual([{ label: "Oct 17 issue", clicks: 2 }]);
+    // Every field of the view is serialised into the page whether or not it is
+    // rendered, so the other side's code must not be anywhere in it. A code is
+    // theirs to publish: this side holding one could send its own readers
+    // through it and have the clicks counted against the other side's channel.
+    expect(JSON.stringify(a)).not.toContain(theirs.code);
+
+    const b = await getSwapForToken(db, tokens.b, NOW);
+    expect(b.trackingLinks.map((l) => l.code)).toEqual([theirs.code]);
+    expect(b.partnerPlacements).toEqual([{ label: "In-app banner", clicks: 0 }]);
+    expect(JSON.stringify(b)).not.toContain(mine.code);
   });
 
   it("only lets a side report results for itself, and only on an agreed swap", async () => {
