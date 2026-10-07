@@ -36,6 +36,13 @@
       "when": 1791334616293,
       "tag": "0004_party_listings",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791335416449,
+      "tag": "0005_party_access",
+      "breakpoints": true
     }
   ]
 }

@@ -115,6 +115,8 @@ async function run() {
   check(home.status === 200 && home.html.includes("Partner swaps that actually happen"), "landing page renders");
   const partners = await get("/partners");
   check(partners.status === 200 && partners.html.includes("Nobody is listed yet"), "empty partner list renders");
+  check((await get("/list")).status === 200, "the public listing form renders");
+  check((await get("/p/not-a-real-token")).status === 404, "an unknown listing link is a 404");
   check((await get("/d/not-a-real-token")).status === 404, "unknown swap link is a 404");
   check((await get("/admin")).location?.endsWith("/admin/login"), "dashboard redirects to sign in");
 
@@ -280,6 +282,46 @@ async function run() {
     "proposing from the list reuses the business instead of copying it",
   );
   check(names.includes("Invoice Nudge"), "the proposing stranger is recorded as its own business");
+
+  console.log("Listing with no swap behind it");
+  const thinListing = await submit("/list", 'name="needs"', {
+    name: "Invoice Nudge",
+    kind: "app",
+    website: "https://invoicenudge.example",
+    offers: "stuff",
+    needs: "A billing tool my users would pay for",
+  });
+  check(
+    thinListing.location === "" && thinListing.body.includes("what you can offer"),
+    "a listing that says nothing is refused, with the form still filled in",
+  );
+  check(thinListing.body.includes("Invoice Nudge"), "a refused listing keeps what was typed");
+
+  const madeListing = await submit("/list", 'name="needs"', {
+    name: "Receipt Butler",
+    kind: "app",
+    website: "https://receiptbutler.example",
+    email: "pat@receiptbutler.example",
+    offers: "A slot in our onboarding email to 2,000 new users a month",
+    needs: "A billing or scheduling tool my users would pay for",
+  });
+  const managePath = new URL(madeListing.location, BASE).pathname;
+  check(/^\/p\/[A-Za-z0-9_-]{24}$/.test(managePath), "listing mints a private link and lands on it");
+
+  const manage = await get(managePath);
+  check(manage.html.includes("Receipt Butler"), "the private link opens the listing");
+  check(manage.html.includes("No swaps through Surka yet"), "a brand new listing says it has no record");
+  check((await get("/partners")).html.includes("Receipt Butler"), "the new listing is on the public list");
+
+  const removed = await submit(managePath, 'name="needs"', {
+    token: managePath.slice("/p/".length),
+    offers: "A slot in our onboarding email to 2,000 new users a month",
+    needs: "A billing or scheduling tool my users would pay for",
+  });
+  check(query(removed.location, "ok")?.includes("Removed") ?? false, "the holder can take the listing down");
+  check(!(await get("/partners")).html.includes("Receipt Butler"), "a removed listing leaves the public list");
+  // Delisting is not deleting: the link has to still work or they can never return.
+  check((await get(managePath)).status === 200, "the private link still works after removal");
 
   console.log("Reminders");
   const cronDenied = await fetch(BASE + "/api/cron/reminders");

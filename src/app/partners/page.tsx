@@ -32,8 +32,8 @@ export default async function PartnersPage() {
         <a href="/" aria-label="Surka home">
           <Logo size={30} />
         </a>
-        <ButtonLink href="/start" variant="action">
-          Start a swap
+        <ButtonLink href="/list" variant="action">
+          List your business
         </ButtonLink>
       </header>
 
@@ -46,16 +46,23 @@ export default async function PartnersPage() {
           they can accept it, suggest changes, or decline. Neither of you needs an account.
         </p>
 
+        <ButtonLink href="/list" variant="action" className="mt-8">
+          List your business
+        </ButtonLink>
+
         {listings.length === 0 ? (
           <div className="mt-10 rounded-xl border border-dashed border-line bg-white px-6 py-12">
             <h2 className="text-xl font-semibold">Nobody is listed yet</h2>
             <p className="mt-2 max-w-prose text-muted">
-              Listing opens once you&apos;ve run a swap, because the point of this page is the record next to
-              each name. Start one and you can add yourself from your own swap page.
+              Be the first. Say what you can offer and what you&apos;re after, and founders can propose swaps to
+              you without an introduction.
             </p>
-            <ButtonLink href="/start" variant="action" className="mt-5">
-              Start a swap
-            </ButtonLink>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <ButtonLink href="/list" variant="action">
+                List your business
+              </ButtonLink>
+              <ButtonLink href="/start">Already have a partner?</ButtonLink>
+            </div>
           </div>
         ) : (
           <ul className="mt-10 space-y-4">

@@ -9,6 +9,7 @@ import {
   responses,
   results,
   remindersSent,
+  partyAccess,
   swapAccess,
   swaps,
   trackingLinks,
@@ -96,20 +97,47 @@ async function requireAccess(db: Db, token: string): Promise<SwapAccess> {
 
 // Parties ------------------------------------------------------------------
 
+/** Which business a link proves control of, and the swap it came from if any. */
+interface Holder {
+  partyId: string;
+  swapId: string | null;
+  side: Side | null;
+}
+
 /**
- * The business on the holder's side of a swap link.
+ * Resolve either kind of link to the business behind it.
  *
- * Holding the token proves control of that side, which is what makes it safe
- * to carry the same party into a new swap. Without this, every swap started
- * from the public form mints a fresh business, so a founder's track record
- * never accumulates and "no swaps yet" shows forever.
+ * Two kinds exist because a business can exist before any swap does. A swap
+ * link proves control of one side of that swap; a listing link proves control
+ * of the business itself, which is what lets someone list before their first
+ * swap. Both are unguessable secrets, and neither is an account.
  */
-export async function partyForToken(db: Db, token: string): Promise<Party | null> {
+async function holderOf(db: Db, token: string): Promise<Holder | null> {
+  if (!token) return null;
+  const [listing] = await db.select().from(partyAccess).where(eq(partyAccess.token, token)).limit(1);
+  if (listing) return { partyId: listing.partyId, swapId: null, side: null };
   const [access] = await db.select().from(swapAccess).where(eq(swapAccess.token, token)).limit(1);
   if (!access) return null;
   const swap = await requireSwap(db, access.swapId);
-  const partyId = access.side === "a" ? swap.partyAId : swap.partyBId;
-  const [party] = await db.select().from(parties).where(eq(parties.id, partyId)).limit(1);
+  return {
+    partyId: access.side === "a" ? swap.partyAId : swap.partyBId,
+    swapId: swap.id,
+    side: access.side,
+  };
+}
+
+/**
+ * The business a link belongs to.
+ *
+ * Holding the token proves control, which is what makes it safe to carry the
+ * same party into a new swap. Without this, every swap started from the public
+ * form mints a fresh business, so a founder's track record never accumulates
+ * and "no swaps yet" shows forever.
+ */
+export async function partyForToken(db: Db, token: string): Promise<Party | null> {
+  const holder = await holderOf(db, token);
+  if (!holder) return null;
+  const [party] = await db.select().from(parties).where(eq(parties.id, holder.partyId)).limit(1);
   return party ?? null;
 }
 
@@ -168,9 +196,10 @@ export async function setListed(
   now = new Date(),
 ): Promise<Party> {
   const values = parse(listingInput, input);
-  const access = await requireAccess(db, token);
-  const swap = await requireSwap(db, access.swapId);
-  const partyId = access.side === "a" ? swap.partyAId : swap.partyBId;
+  const holder = await holderOf(db, token);
+  if (!holder) {
+    throw new SurkaError("This link isn't valid. Ask the person who sent it for a new one.", "not_found");
+  }
   const [party] = await db
     .update(parties)
     .set(
@@ -178,11 +207,94 @@ export async function setListed(
         ? { offers: values.offers, needs: values.needs, listedAt: now }
         : { listedAt: null },
     )
-    .where(eq(parties.id, partyId))
+    .where(eq(parties.id, holder.partyId))
     .returning();
   if (!party) throw new SurkaError("That business doesn't exist.", "not_found");
-  await logEvent(db, swap.id, values.listed ? "listed" : "unlisted", { side: access.side });
+  // Events hang off a swap, and a listing link has none.
+  if (holder.swapId) {
+    await logEvent(db, holder.swapId, values.listed ? "listed" : "unlisted", {
+      side: holder.side ?? undefined,
+    });
+  }
   return party;
+}
+
+export interface CreatedListing {
+  party: Party;
+  token: string;
+}
+
+/**
+ * The public way onto the partner list, with no swap behind it.
+ *
+ * Listing used to require a swap link, which only exists once you have already
+ * run a swap with someone. That is a cold start the directory can never escape
+ * on its own: nobody can list until they have swapped, and there is nobody
+ * listed to swap with. This mints the business and its listing link together,
+ * so the link is the only thing the holder has to keep.
+ */
+export async function createListing(db: Db, input: unknown, now = new Date()): Promise<CreatedListing> {
+  const identity = parse(partyIdentityInput, input);
+  const listing = parse(listingInput, { ...(input as object), listed: true });
+
+  return db.transaction(async (tx) => {
+    const [party] = await tx
+      .insert(parties)
+      .values({ ...identity, offers: listing.offers, needs: listing.needs, listedAt: now })
+      .returning();
+    if (!party) throw new Error("Insert returned no row");
+    const token = newAccessToken();
+    await tx.insert(partyAccess).values({ token, partyId: party.id });
+    return { party, token };
+  });
+}
+
+/** What a business sees through its own listing link. */
+export interface ListingView {
+  party: Party;
+  record: TrackRecord;
+  /** Swaps this business is part of, so the link is a way back to all of them. */
+  swaps: { id: string; title: string; status: SwapStatus; token: string | null }[];
+}
+
+export async function getListingForToken(
+  db: Db,
+  token: string,
+  now = new Date(),
+): Promise<ListingView | null> {
+  const [access] = await db.select().from(partyAccess).where(eq(partyAccess.token, token)).limit(1);
+  if (!access) return null;
+  const [party] = await db.select().from(parties).where(eq(parties.id, access.partyId)).limit(1);
+  if (!party) return null;
+
+  const [record, rows] = await Promise.all([
+    partyRecord(db, party.id, now),
+    db
+      .select({
+        id: swaps.id,
+        title: swaps.title,
+        status: swaps.status,
+        partyAId: swaps.partyAId,
+        token: swapAccess.token,
+        side: swapAccess.side,
+      })
+      .from(swaps)
+      .leftJoin(swapAccess, eq(swapAccess.swapId, swaps.id))
+      .where(or(eq(swaps.partyAId, party.id), eq(swaps.partyBId, party.id)))
+      .orderBy(desc(swaps.createdAt)),
+  ]);
+  await db.update(partyAccess).set({ lastViewedAt: now }).where(eq(partyAccess.token, token));
+
+  // Only this business's own side of each swap. The join returns both rows.
+  const mine = new Map<string, ListingView["swaps"][number]>();
+  for (const row of rows) {
+    const ownSide = row.partyAId === party.id ? "a" : "b";
+    if (!mine.has(row.id)) {
+      mine.set(row.id, { id: row.id, title: row.title, status: row.status, token: null });
+    }
+    if (row.side === ownSide && row.token) mine.get(row.id)!.token = row.token;
+  }
+  return { party, record, swaps: [...mine.values()] };
 }
 
 /**

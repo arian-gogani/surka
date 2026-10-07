@@ -3,6 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createPgliteDb, type Db } from "@/db/client";
 import type { EmailMessage } from "@/lib/email";
 import { SurkaError } from "@/lib/errors";
+import { describeRecord } from "@/lib/reputation";
 import { pilotMetrics } from "@/lib/services/metrics";
 import { runReminders } from "@/lib/services/reminders";
 import {
@@ -18,6 +19,8 @@ import {
   markProposed,
   partyRecord,
   partyRecords,
+  createListing,
+  getListingForToken,
   getListing,
   getParty,
   listListings,
@@ -399,6 +402,86 @@ describe("the partner list", () => {
     expect(await getListing(db, newsletter.id, NOW)).not.toBeNull();
     expect(await getListing(db, app.id, NOW)).toBeNull();
     expect(await getListing(db, "not-a-uuid", NOW)).toBeNull();
+  });
+});
+
+describe("listing without a swap", () => {
+  const good = {
+    name: "Invoice Nudge",
+    kind: "app",
+    website: "https://invoicenudge.example",
+    email: "Pat@InvoiceNudge.example",
+    offers: "A slot in our onboarding email to 2,000 new users a month",
+    needs: "A billing or scheduling tool my users would pay for",
+  };
+
+  it("lists a business that has never run a swap", async () => {
+    // The cold start: listing used to need a swap link, which only exists once
+    // you have already swapped with someone.
+    const { party, token } = await createListing(db, good, NOW);
+    expect(token).toMatch(/^[A-Za-z0-9_-]{24}$/);
+
+    const listings = await listListings(db, NOW);
+    expect(listings.map((l) => l.id)).toEqual([party.id]);
+    expect(listings[0]?.record).toEqual({ kept: 0, resolved: 0, score: null });
+    expect(describeRecord(listings[0]!.record)).toBe("No swaps through Surka yet");
+  });
+
+  it("won't list a business that says nothing useful", async () => {
+    await expectSurka(createListing(db, { ...good, offers: "stuff" }, NOW), "invalid");
+    await expectSurka(createListing(db, { ...good, needs: "" }, NOW), "invalid");
+    await expectSurka(createListing(db, { ...good, name: "" }, NOW), "invalid");
+    // A rejected listing leaves nothing behind.
+    expect(await listListings(db, NOW)).toEqual([]);
+  });
+
+  it("gives the holder a link that manages the listing and nothing else", async () => {
+    const { party, token } = await createListing(db, good, NOW);
+    const view = await getListingForToken(db, token, NOW);
+    expect(view?.party.id).toBe(party.id);
+    expect(view?.swaps).toEqual([]);
+    expect(await getListingForToken(db, "not-a-real-token", NOW)).toBeNull();
+  });
+
+  it("lets the holder edit and remove the listing with that link", async () => {
+    const { token } = await createListing(db, good, NOW);
+    await setListed(db, token, { listed: "yes", offers: "A dedicated slot, every week", needs: good.needs });
+    expect((await listListings(db, NOW))[0]?.offers).toBe("A dedicated slot, every week");
+
+    await setListed(db, token, { listed: "" });
+    expect(await listListings(db, NOW)).toEqual([]);
+    // Delisting is not deleting: the link still resolves, so they can return.
+    expect(await getListingForToken(db, token, NOW)).not.toBeNull();
+  });
+
+  it("carries the listed business into a swap instead of starting its record over", async () => {
+    const { party, token } = await createListing(db, good, NOW);
+    // /start?from= takes either kind of link, which is what makes the record
+    // follow someone from their listing into their first swap.
+    expect((await partyForToken(db, token))?.id).toBe(party.id);
+    // Addresses are normalised on the way in, so reminders don't double-send.
+    expect(party.email).toBe("pat@invoicenudge.example");
+  });
+
+  it("shows the holder their swaps, with their own side's link", async () => {
+    const { party, token } = await createListing(db, good, NOW);
+    const partner = await createParty(db, { name: "Practice Manager Weekly", kind: "newsletter" });
+    const created = await createSwap(db, {
+      title: "Onboarding slot for a feature",
+      partyAId: party.id,
+      partyBId: partner.id,
+      commitments: [
+        { side: "a", description: "A slot in the onboarding email", dueDate: "2026-10-20" },
+        { side: "b", description: "A dedicated section in the next issue", dueDate: "2026-10-20" },
+      ],
+    });
+
+    const view = await getListingForToken(db, token, NOW);
+    expect(view?.swaps).toHaveLength(1);
+    expect(view?.swaps[0]?.title).toBe("Onboarding slot for a feature");
+    // Side A's link, never side B's: this page must not hand over the partner's.
+    expect(view?.swaps[0]?.token).toBe(created.tokens.a);
+    expect(view?.swaps[0]?.token).not.toBe(created.tokens.b);
   });
 });
 

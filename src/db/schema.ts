@@ -57,6 +57,27 @@ export const parties = pgTable("parties", {
   createdAt: createdAt(),
 });
 
+/**
+ * Secret link a business uses to manage its own listing. No accounts.
+ *
+ * Separate from swapAccess because a business can exist before any swap does:
+ * listing used to require having already run one, which is a cold start the
+ * directory could never escape. A swap link proves control of a side; this
+ * proves control of the business itself.
+ */
+export const partyAccess = pgTable(
+  "party_access",
+  {
+    token: text("token").primaryKey(),
+    partyId: uuid("party_id")
+      .notNull()
+      .references(() => parties.id, { onDelete: "cascade" }),
+    lastViewedAt: timestamp("last_viewed_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("party_access_party_idx").on(t.partyId)],
+);
+
 /** One trade between two parties. Side A proposes, side B receives. */
 export const swaps = pgTable(
   "swaps",
@@ -219,6 +240,7 @@ export type Party = typeof parties.$inferSelect;
 export type Swap = typeof swaps.$inferSelect;
 export type Commitment = typeof commitments.$inferSelect;
 export type SwapAccess = typeof swapAccess.$inferSelect;
+export type PartyAccess = typeof partyAccess.$inferSelect;
 export type ResponseRow = typeof responses.$inferSelect;
 export type TrackingLink = typeof trackingLinks.$inferSelect;
 export type Result = typeof results.$inferSelect;
