@@ -513,6 +513,54 @@ describe("reminders", () => {
     expect(run.skipped).toBe(1); // B's reminder is due but B has no email.
   });
 
+  it("never books a reminder nothing can deliver", async () => {
+    // The production state with no RESEND_API_KEY. Booking these as sent burned
+    // the window for good: the once-only row stood and that commitment was
+    // never chased again, even after a real key was added.
+    const { swap, tokens } = await seedSwap();
+    await markProposed(db, swap.id, NOW);
+    await respond(db, tokens.b, { decision: "accept" }, NOW);
+
+    const logged: EmailMessage[] = [];
+    const logOnly = Object.assign(async (m: EmailMessage) => void logged.push(m), {
+      provider: "log" as const,
+      delivers: false,
+    });
+
+    expect(await runReminders(db, logOnly, NOW)).toMatchObject({ sent: 0, undeliverable: 1 });
+    expect(logged).toHaveLength(1);
+    // Still due, every run, until something can actually deliver it.
+    expect((await runReminders(db, logOnly, NOW)).undeliverable).toBe(1);
+
+    const outbox: EmailMessage[] = [];
+    const real = await runReminders(db, async (m) => void outbox.push(m), NOW);
+    expect(real).toMatchObject({ sent: 1, undeliverable: 0 });
+    expect(outbox[0]?.subject).toContain("Due in 3 days");
+  });
+
+  it("gives every reminder a key the provider can deduplicate on", async () => {
+    const { swap, tokens } = await seedSwap();
+    await markProposed(db, swap.id, NOW);
+    await respond(db, tokens.b, { decision: "accept" }, NOW);
+    const outbox: EmailMessage[] = [];
+    await runReminders(db, async (m) => void outbox.push(m), NOW);
+    // So a retry after a lost response cannot deliver a second copy.
+    expect(outbox[0]?.idempotencyKey).toMatch(/^reminder-[0-9a-f-]{36}-3d$/);
+  });
+
+  it("records a sent reminder on the swap's timeline", async () => {
+    const { swap, tokens } = await seedSwap();
+    await markProposed(db, swap.id, NOW);
+    await respond(db, tokens.b, { decision: "accept" }, NOW);
+    await runReminders(db, async () => {}, NOW);
+
+    // Without this the product could not show that it had chased anyone.
+    const { events } = await getSwapForToken(db, tokens.a, NOW);
+    const reminder = events.find((e) => e.type === "reminder_sent");
+    expect(reminder?.side).toBe("a");
+    expect(reminder?.detail).toBe("3d");
+  });
+
   it("retries a reminder whose send failed", async () => {
     const { swap, tokens } = await seedSwap();
     await markProposed(db, swap.id, NOW);

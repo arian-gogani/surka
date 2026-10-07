@@ -133,7 +133,12 @@ export const commitments = pgTable(
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: createdAt(),
   },
-  (t) => [index("commitments_swap_idx").on(t.swapId)],
+  (t) => [
+    index("commitments_swap_idx").on(t.swapId),
+    // The reminder run asks for pending commitments due within three days,
+    // every day, forever. Nothing indexed status, so it scanned the table.
+    index("commitments_due_idx").on(t.status, t.dueDate),
+  ],
 );
 
 /** Secret link each side uses to view and act on its swap. No accounts. */

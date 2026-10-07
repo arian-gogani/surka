@@ -1,0 +1,1 @@
+CREATE INDEX "commitments_due_idx" ON "commitments" USING btree ("status","due_date");

@@ -43,6 +43,13 @@
       "when": 1791335416449,
       "tag": "0005_party_access",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791335962741,
+      "tag": "0006_commitment_due_index",
+      "breakpoints": true
     }
   ]
 }

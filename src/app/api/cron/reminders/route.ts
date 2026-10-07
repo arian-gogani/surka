@@ -16,5 +16,15 @@ export async function GET(request: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
   const run = await runReminders(await getDb(), defaultEmailSender());
-  return Response.json(run);
+  // A run that could deliver nothing is not a success. Nothing reads this body
+  // on a good day, so the one day it matters it has to be in the server log.
+  if (run.undeliverable > 0) {
+    console.error(
+      `[reminders] ${run.undeliverable} reminder(s) were due and nothing could send them: no RESEND_API_KEY is set. They stay due.`,
+    );
+  }
+  if (run.truncated) {
+    console.warn("[reminders] hit the per-run cap. The next run continues from where this one stopped.");
+  }
+  return Response.json(run, { status: run.undeliverable > 0 ? 503 : 200 });
 }

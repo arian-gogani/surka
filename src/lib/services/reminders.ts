@@ -1,22 +1,42 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, lte } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Db } from "@/db/client";
-import { commitments, parties, remindersSent, swapAccess, swaps, type ReminderKind } from "@/db/schema";
-import { formatDate, relativeDue } from "../dates";
+import {
+  commitments,
+  events,
+  parties,
+  remindersSent,
+  swapAccess,
+  swaps,
+  type ReminderKind,
+  type Side,
+} from "@/db/schema";
+import { addDays, formatDate, relativeDue, toDateOnly } from "../dates";
 import type { EmailProvider, EmailSender } from "../email";
 import { appUrl } from "../env";
 import { dueReminderKind, reminderSubject } from "../reminders";
 
+/** Emails one run may send. Keeps a run bounded so it cannot die partway. */
+export const MAX_PER_RUN = 100;
+
 export interface ReminderRun {
-  /**
-   * Handed to the sender without throwing. With provider "log" that means
-   * written to the server log, not delivered to anyone, and the reminder is
-   * still recorded as used. Setting RESEND_API_KEY later does not backfill it.
-   */
+  /** Delivered to a real address, and recorded so it never goes out twice. */
   sent: number;
   /** Due a reminder, but the side has no email on file. Recounted every run. */
   skipped: number;
   failed: number;
+  /**
+   * Due a reminder that nothing can deliver, because no provider is configured.
+   *
+   * Counted and deliberately not recorded. Booking these as sent is what used
+   * to happen, and it burned the reminder for good: the window passed, the
+   * once-only row stood, and that commitment was never chased again even after
+   * a real key was added. A run of all-undeliverable is a loud zero, not a
+   * quiet success.
+   */
+  undeliverable: number;
+  /** Stopped at MAX_PER_RUN. The next run picks up where this one left off. */
+  truncated: boolean;
   /** "log" until RESEND_API_KEY is set, so the two runs are distinguishable. */
   provider: EmailProvider;
 }
@@ -40,10 +60,29 @@ export async function runReminders(db: Db, send: EmailSender, now = new Date()):
     .innerJoin(swaps, eq(swaps.id, commitments.swapId))
     .innerJoin(pa, eq(pa.id, swaps.partyAId))
     .innerJoin(pb, eq(pb.id, swaps.partyBId))
-    .where(and(eq(swaps.status, "accepted"), eq(commitments.status, "pending")));
+    .where(
+      and(
+        eq(swaps.status, "accepted"),
+        eq(commitments.status, "pending"),
+        // The furthest-out window is 3 days, so anything later cannot be due a
+        // reminder yet. Without this the run fetched every pending commitment
+        // of every accepted swap, scanned them all, and threw most away.
+        lte(commitments.dueDate, addDays(toDateOnly(now), 3)),
+      ),
+    );
 
   const provider: EmailProvider = "provider" in send ? (send.provider as EmailProvider) : "resend";
-  const run: ReminderRun = { sent: 0, skipped: 0, failed: 0, provider };
+  // A sender that does not say either way is assumed to deliver, which is the
+  // safe default: it books what it sends rather than sending twice.
+  const delivers = "delivers" in send ? Boolean((send as { delivers?: unknown }).delivers) : true;
+  const run: ReminderRun = {
+    sent: 0,
+    skipped: 0,
+    failed: 0,
+    undeliverable: 0,
+    truncated: false,
+    provider,
+  };
   if (rows.length === 0) return run;
 
   const ids = rows.map((r) => r.commitment.id);
@@ -68,6 +107,21 @@ export async function runReminders(db: Db, send: EmailSender, now = new Date()):
       continue;
     }
 
+    // Nothing is recorded when nothing can be delivered. The message still goes
+    // to the log so a developer can read it, but the reminder stays due.
+    if (!delivers) {
+      run.undeliverable += 1;
+      await send(messageFor(row, commitment, kind, party, token, now)).catch((error) => {
+        console.error(`Could not log the reminder for commitment ${commitment.id}`, error);
+      });
+      continue;
+    }
+
+    if (run.sent >= MAX_PER_RUN) {
+      run.truncated = true;
+      break;
+    }
+
     const [claim] = await db
       .insert(remindersSent)
       .values({ commitmentId: commitment.id, kind, sentAt: now })
@@ -76,20 +130,12 @@ export async function runReminders(db: Db, send: EmailSender, now = new Date()):
     if (!claim) continue; // Another run got here first.
 
     try {
-      await send({
-        to: party.email,
-        subject: reminderSubject(kind, row.swapTitle, commitment.dueDate, now),
-        text: reminderText({
-          kind,
-          name: party.contactName ?? party.name,
-          swapTitle: row.swapTitle,
-          description: commitment.description,
-          dueDate: commitment.dueDate,
-          link: `${appUrl()}/d/${token}`,
-          now,
-        }),
-      });
+      await send(messageFor(row, commitment, kind, party, token, now));
       run.sent += 1;
+      // The operator's only window onto this. Without it the swap timeline and
+      // both deal sheets showed no trace that a reminder had ever gone out, so
+      // "we chased them" was unverifiable from inside the product.
+      await logReminderEvent(db, commitment.swapId, commitment.side, kind).catch(() => {});
     } catch (error) {
       console.error(`Reminder for commitment ${commitment.id} failed`, error);
       try {
@@ -104,6 +150,37 @@ export async function runReminders(db: Db, send: EmailSender, now = new Date()):
     }
   }
   return run;
+}
+
+/** One reminder's message, built the same way whoever is about to send it. */
+function messageFor(
+  row: { swapTitle: string },
+  commitment: { id: string; description: string; dueDate: string },
+  kind: ReminderKind,
+  party: { name: string; contactName: string | null; email: string | null },
+  token: string,
+  now: Date,
+) {
+  return {
+    to: party.email as string,
+    subject: reminderSubject(kind, row.swapTitle, commitment.dueDate, now),
+    text: reminderText({
+      kind,
+      name: party.contactName ?? party.name,
+      swapTitle: row.swapTitle,
+      description: commitment.description,
+      dueDate: commitment.dueDate,
+      link: `${appUrl()}/d/${token}`,
+      now,
+    }),
+    // The natural key for this message: one reminder of one kind for one
+    // commitment. A retry after a lost response cannot deliver a second copy.
+    idempotencyKey: `reminder-${commitment.id}-${kind}`,
+  };
+}
+
+async function logReminderEvent(db: Db, swapId: string, side: Side, kind: ReminderKind): Promise<void> {
+  await db.insert(events).values({ swapId, type: "reminder_sent", side, detail: kind });
 }
 
 function reminderText(p: {
