@@ -254,6 +254,14 @@ async function run() {
   // placing side's to publish.
   check(!received.html.includes(`/r/${code}`) && !received.html.includes(`"${code}"`), "but never its code");
 
+  // The cross-side case, which nothing covered: side A's page must not carry
+  // side B's tracking code anywhere, rendered or not.
+  const proposerView = await get(`/d/${proposerToken}`);
+  check(
+    proposerView.status === 200 && !proposerView.html.includes(code),
+    "one side's page never carries the other side's tracking code",
+  );
+
   const retired = await submit(swapPath, "Retire this link", {});
   check(query(retired.location, "ok")?.startsWith("Link retired") ?? false, "operator retires a link");
   check((await get(`/r/${code}`)).status === 404, "a retired link stops redirecting");
