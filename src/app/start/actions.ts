@@ -57,6 +57,7 @@ export async function startSwapAction(_previous: StartState, formData: FormData)
   if (!title.success) return fail(firstIssue(title.error));
 
   let tokens: { a: string; b: string };
+  let aimedAtListing = false;
   try {
     const db = await getDb();
     // Holding a link from an earlier swap proves which business you are, so
@@ -78,6 +79,7 @@ export async function startSwapAction(_previous: StartState, formData: FormData)
     // never accumulates. Only listed businesses: this is a public id, and it
     // must not be a way to attach yourself to a private one.
     const target = field("with") ? await getListing(db, field("with")) : null;
+    aimedAtListing = target !== null;
     const [you, partner] = await Promise.all([
       returning ? updatePartyIdentity(db, returning.id, mine) : createParty(db, mine),
       target
@@ -100,14 +102,29 @@ export async function startSwapAction(_previous: StartState, formData: FormData)
         partyBId: partner.id,
         commitments: terms,
       },
-      // No email goes out, so the proposer is the one who has to deliver the
-      // partner's link. Their own page shows it to them because of this.
-      { status: "proposed", openedBy: "proposer" },
+      target
+        ? /*
+           * Aimed at a business already on the partner list, so the proposer
+           * never sees that side's token.
+           *
+           * The token is that business's own proof of identity. Handing it over
+           * let the proposer rewrite the victim's public listing text, their
+           * name, their website, and the address their reminders go to, by
+           * reading a party id off the public directory and posting this form
+           * twice. The partner finds the proposal on their own listing page
+           * instead, which is where their swaps are already listed.
+           */
+          { status: "proposed", openedBy: "directory", withhold: "b" }
+        : // Nobody else is going to send it, so the proposer has to, and their
+          // own page shows it to them because of this.
+          { status: "proposed", openedBy: "proposer" },
     );
     tokens = created.tokens;
   } catch (error) {
     return fail(messageFor(error));
   }
 
-  redirect(`/start/sent?a=${tokens.a}&b=${tokens.b}`);
+  // No b in the query string when it was withheld: nothing should be able to
+  // reconstruct it from a URL, a log, or browser history.
+  redirect(aimedAtListing ? `/start/sent?a=${tokens.a}` : `/start/sent?a=${tokens.a}&b=${tokens.b}`);
 }

@@ -33,12 +33,21 @@ function sweep(now: number): void {
 }
 
 /**
- * Best-effort client address. Vercel sets x-forwarded-for; the first entry is
- * the original client. Falls back to a shared bucket, which means unknown
- * callers throttle each other rather than going unlimited.
+ * Best-effort client address.
+ *
+ * x-vercel-forwarded-for is set by the platform and cannot be forged by the
+ * caller. x-forwarded-for can: the platform appends the real address to
+ * whatever the client sent, so reading the *first* entry read the attacker's
+ * own value, and a loop with a different fake address each time got a fresh
+ * bucket every request. The last entry is the one the platform added.
+ *
+ * Falls back to a shared bucket, so unknown callers throttle each other rather
+ * than going unlimited.
  */
 export function clientKey(headers: Headers): string {
-  const forwarded = headers.get("x-forwarded-for");
-  const first = forwarded?.split(",")[0]?.trim();
-  return first || headers.get("x-real-ip") || "unknown";
+  const trusted = headers.get("x-vercel-forwarded-for")?.trim();
+  if (trusted) return trusted;
+  const chain = headers.get("x-forwarded-for")?.split(",") ?? [];
+  const last = chain[chain.length - 1]?.trim();
+  return last || headers.get("x-real-ip")?.trim() || "unknown";
 }

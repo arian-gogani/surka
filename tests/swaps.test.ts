@@ -293,6 +293,23 @@ describe("tracking and results", () => {
     expect(result.side).toBe("b");
   });
 
+  it("keeps one figure per measure even when two submits land at once", async () => {
+    const { swap, tokens } = await seedSwap();
+    await markProposed(db, swap.id, NOW);
+    await respond(db, tokens.b, { decision: "accept" }, NOW);
+
+    // A double-tapped submit on a phone. Delete-then-insert let both find
+    // nothing to delete and both insert, which is the pair of contradictory
+    // numbers the replacement behaviour exists to prevent.
+    await Promise.all([
+      reportResult(db, tokens.b, { metric: "signups", value: 500 }),
+      reportResult(db, tokens.b, { metric: "signups", value: 500 }),
+    ]);
+
+    const view = await getSwapForToken(db, tokens.b, NOW);
+    expect(view.results.filter((r) => r.metric === "signups")).toHaveLength(1);
+  });
+
   it("replaces a figure for the same measure instead of stacking contradictions", async () => {
     const { swap, tokens } = await seedSwap();
     await markProposed(db, swap.id, NOW);

@@ -46,13 +46,25 @@ describe("rate limit", () => {
 });
 
 describe("client key", () => {
-  it("takes the first entry of x-forwarded-for, which is the original client", () => {
-    const headers = new Headers({ "x-forwarded-for": "203.0.113.5, 70.41.3.18, 150.172.238.178" });
+  it("prefers the header the platform sets, which a caller cannot forge", () => {
+    const headers = new Headers({
+      "x-vercel-forwarded-for": "203.0.113.5",
+      "x-forwarded-for": "10.0.0.1, 203.0.113.5",
+    });
     expect(clientKey(headers)).toBe("203.0.113.5");
   });
 
+  it("takes the last entry of x-forwarded-for, not the first", () => {
+    // The platform appends the real address to whatever the client sent, so the
+    // first entry is attacker-controlled. Keying on it meant a loop with a
+    // different fake address each time got a fresh bucket every request, and
+    // the public listing form's three-per-hour cap never engaged at all.
+    const spoofed = new Headers({ "x-forwarded-for": "10.0.0.1, 150.172.238.178" });
+    expect(clientKey(spoofed)).toBe("150.172.238.178");
+  });
+
   it("trims whitespace around the address", () => {
-    expect(clientKey(new Headers({ "x-forwarded-for": "  203.0.113.5  , 70.41.3.18" }))).toBe("203.0.113.5");
+    expect(clientKey(new Headers({ "x-forwarded-for": "70.41.3.18,  203.0.113.5  " }))).toBe("203.0.113.5");
   });
 
   it("falls back to x-real-ip", () => {

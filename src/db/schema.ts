@@ -25,7 +25,16 @@ export type SwapStatus =
   | "declined"
   | "cancelled";
 export type CommitmentStatus = "pending" | "delivered" | "kept" | "missed";
-export type OpenedBy = "operator" | "proposer";
+/**
+ * Who has to get the partner their link.
+ *
+ * "directory" is the case where nobody does: the proposal was aimed at a
+ * business already on the partner list, which finds it on its own listing
+ * page. That matters for security, not just copy. Handing the proposer a token
+ * for a business they do not own let them rewrite that business's public
+ * listing, name, website and contact address.
+ */
+export type OpenedBy = "operator" | "proposer" | "directory";
 export type Decision = "accept" | "counter" | "decline";
 export type ReminderKind = "3d" | "1d" | "overdue";
 export type ResultMetric = "installs" | "signups" | "trials" | "clicks" | "other";
@@ -206,7 +215,14 @@ export const results = pgTable(
     note: text("note"),
     createdAt: createdAt(),
   },
-  (t) => [index("results_swap_idx").on(t.swapId)],
+  (t) => [
+    index("results_swap_idx").on(t.swapId),
+    // One figure per side per measure, enforced here rather than by a
+    // delete-then-insert. Two concurrent submits both found nothing to delete
+    // and both inserted, which is exactly the pair of contradictory numbers
+    // the replacement behaviour exists to prevent.
+    uniqueIndex("results_measure_idx").on(t.swapId, t.side, t.metric),
+  ],
 );
 
 /** Append-only timeline of everything that happened to a swap. */

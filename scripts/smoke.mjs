@@ -271,6 +271,22 @@ async function run() {
   });
   check(fromList.location.startsWith("/start/sent"), "a stranger can propose straight from the list");
 
+  // The listed business's token is its own proof of identity. Handing it to the
+  // proposer let them rewrite that business's public listing, name, website and
+  // reminder address, from a party id read off the public directory.
+  check(!fromList.location.includes("b="), "proposing from the list never hands over the partner's token");
+  const sent = await get(fromList.location);
+  const shown = [...new Set([...sent.html.matchAll(/\/d\/([A-Za-z0-9_-]{24})/g)].map((m) => m[1]))];
+  check(shown.length === 1, "the sent page shows only the proposer's own link");
+  const proposerPage = await get(`/d/${shown[0]}`);
+  // Any token here other than the reader's own is a leak. There is normally
+  // none at all, since a page has no reason to link to itself.
+  const onPage = [...new Set([...proposerPage.html.matchAll(/\/d\/([A-Za-z0-9_-]{24})/g)].map((m) => m[1]))];
+  check(
+    proposerPage.status === 200 && onPage.every((t) => t === shown[0]),
+    "the proposer's own page never exposes the listed partner's link either",
+  );
+
   // Reusing the listed business is the point: a fresh row would reset the very
   // record the list is advertising.
   const businesses = await get("/admin/parties");

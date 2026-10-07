@@ -10,18 +10,37 @@ const optionalText = (max: number) =>
     .nullish()
     .transform((v) => v ?? null);
 
+/**
+ * A link, stored in its parsed form.
+ *
+ * This used to refine and return the raw string. The WHATWG parser silently
+ * strips CR, LF and tab before parsing, so a value with a newline in it passed
+ * the check and the newline was what got stored, ready to be put in a Location
+ * header. Rejecting control characters up front and returning u.href means
+ * what is stored is always what was validated.
+ *
+ * javascript: and data: are blocked by the protocol check, including the
+ * "java\nscript:" style evasions, because the parser normalises those into
+ * javascript: before the check sees them.
+ */
 const url = z
   .string()
   .trim()
   .max(2048)
-  .refine((v) => {
+  .transform((v, ctx) => {
+    const bad = () => {
+      ctx.addIssue({ code: "custom", message: "Enter a full link that starts with https://" });
+      return z.NEVER;
+    };
+    if (/[\u0000-\u001f\u007f]/.test(v)) return bad();
     try {
       const u = new URL(v);
-      return u.protocol === "https:" || u.protocol === "http:";
+      if (u.protocol !== "https:" && u.protocol !== "http:") return bad();
+      return u.href;
     } catch {
-      return false;
+      return bad();
     }
-  }, "Enter a full link that starts with https://");
+  });
 
 const optionalUrl = z
   .union([z.literal(""), url])

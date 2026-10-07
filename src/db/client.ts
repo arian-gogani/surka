@@ -26,8 +26,16 @@ export async function createPgliteDb(dataDir?: string): Promise<Db> {
 export async function createPostgresDb(url: string): Promise<Db> {
   const { default: postgres } = await import("postgres");
   const { drizzle } = await import("drizzle-orm/postgres-js");
-  // prepare: false keeps it compatible with transaction-mode poolers.
-  const client = postgres(url, { prepare: false, max: 5 });
+  const client = postgres(url, {
+    // Compatible with transaction-mode poolers, which reject named statements.
+    prepare: false,
+    max: 5,
+    // Fluid Compute reuses an instance across concurrent requests and keeps it
+    // warm, so without these each instance pins five sockets for as long as it
+    // lives, and a frozen one holds sockets the database has already dropped.
+    idle_timeout: 20,
+    max_lifetime: 60 * 30,
+  });
   return drizzle(client, { schema }) as unknown as Db;
 }
 
@@ -43,9 +51,16 @@ export function getDb(): Promise<Db> {
         "DATABASE_URL is not set. Add a Postgres database to this Vercel project from the Marketplace (Storage, then Create Database, then Neon) and redeploy.",
       );
     }
-    store.__surkaDb = url
+    // Clear the slot if init rejects. Caching the rejected promise meant every
+    // later request on that instance got the same failure, and under Fluid
+    // Compute an instance lives a long time.
+    const opening = url
       ? createPostgresDb(url)
       : createPgliteDb(process.env.PGLITE_DIR || path.join(process.cwd(), ".pglite"));
+    store.__surkaDb = opening.catch((error) => {
+      store.__surkaDb = undefined;
+      throw error;
+    });
   }
   return store.__surkaDb;
 }

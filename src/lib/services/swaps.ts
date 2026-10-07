@@ -415,6 +415,16 @@ export async function partyRecords(db: Db, now = new Date()): Promise<Map<string
 
 export interface CreatedSwap {
   swap: Swap;
+  /**
+   * Both links, for the caller to hand out.
+   *
+   * A caller proposing to a business from the partner list must not receive
+   * side B's token: it is that business's own proof of identity, and holding
+   * it would let the proposer rewrite their public listing, their name, their
+   * website and the address their reminders go to. Those callers pass
+   * `withhold: "b"` and tell the partner nothing; the partner finds the
+   * proposal on their own listing page.
+   */
   tokens: Record<Side, string>;
 }
 
@@ -432,6 +442,7 @@ export async function createSwap(
   {
     status = "draft" as Extract<SwapStatus, "draft" | "proposed">,
     openedBy = "operator" as OpenedBy,
+    withhold = undefined as Side | undefined,
     now = new Date(),
   } = {},
 ): Promise<CreatedSwap> {
@@ -466,6 +477,9 @@ export async function createSwap(
       { token: tokens.a, swapId: swap.id, side: "a" as const },
       { token: tokens.b, swapId: swap.id, side: "b" as const },
     ]);
+    // Both rows exist either way, so the withheld side can still reach its own
+    // swap. The caller simply never sees the string.
+    if (withhold) tokens[withhold] = "";
     await logEvent(tx, swap.id, "created");
     if (status === "proposed") await logEvent(tx, swap.id, "proposed");
     return { swap, tokens };
@@ -803,6 +817,16 @@ export async function addTrackingLink(db: Db, swapId: string, input: unknown): P
 }
 
 /** Counts a click and returns where to send the visitor, or null. */
+/** Where a code points, without counting a visit. */
+export async function destinationFor(db: Db, code: string): Promise<string | null> {
+  const [row] = await db
+    .select({ destinationUrl: trackingLinks.destinationUrl })
+    .from(trackingLinks)
+    .where(eq(trackingLinks.code, code))
+    .limit(1);
+  return row?.destinationUrl ?? null;
+}
+
 export async function recordClick(db: Db, code: string): Promise<string | null> {
   const [row] = await db
     .update(trackingLinks)
@@ -823,19 +847,21 @@ export async function recordClick(db: Db, code: string): Promise<string | null> 
  *
  * The timeline keeps every submission, so nothing is lost by replacing.
  */
-export async function addResult(db: Db, swapId: string, input: unknown): Promise<Result> {
+export async function addResult(db: Db, swapId: string, input: unknown, now = new Date()): Promise<Result> {
   const values = parse(resultInput, input);
   await requireSwap(db, swapId);
-  const row = await db.transaction(async (tx) => {
-    await tx
-      .delete(results)
-      .where(
-        and(eq(results.swapId, swapId), eq(results.side, values.side), eq(results.metric, values.metric)),
-      );
-    const [inserted] = await tx.insert(results).values({ ...values, swapId }).returning();
-    if (!inserted) throw new Error("Insert returned no row");
-    return inserted;
-  });
+  const [row] = await db
+    .insert(results)
+    .values({ ...values, swapId })
+    // One statement, so there is no window between removing the old figure and
+    // writing the new one. A double-tapped submit updates the same row twice
+    // instead of leaving two live figures for one measure.
+    .onConflictDoUpdate({
+      target: [results.swapId, results.side, results.metric],
+      set: { value: values.value, note: values.note, createdAt: now },
+    })
+    .returning();
+  if (!row) throw new Error("Upsert returned no row");
   await logEvent(db, swapId, "result_added", { side: row.side, detail: `${row.value} ${row.metric}` });
   return row;
 }

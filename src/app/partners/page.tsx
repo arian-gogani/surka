@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Logo } from "@/components/logo";
 import { ButtonLink } from "@/components/ui";
 import { getDb } from "@/db/client";
@@ -69,19 +70,12 @@ export default async function PartnersPage() {
             {listings.map((l) => (
               <li key={l.id} className="rounded-xl border border-line bg-white p-5 sm:p-6">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                  {/* The name goes to their page on Surka, not out to their
+                      own site: the record and the proposal form are here. */}
                   <h2 className="break-words text-xl font-semibold">
-                    {l.website ? (
-                      <a
-                        href={l.website}
-                        rel="noopener noreferrer nofollow"
-                        target="_blank"
-                        className="underline-offset-4 hover:underline"
-                      >
-                        {l.name}
-                      </a>
-                    ) : (
-                      l.name
-                    )}
+                    <Link href={`/partners/${l.id}`} className="underline-offset-4 hover:underline">
+                      {l.name}
+                    </Link>
                   </h2>
                   {/* The record is the reason this page is worth reading. A
                       directory of names is a directory; a directory of names
@@ -103,9 +97,10 @@ export default async function PartnersPage() {
                     <dd className="mt-0.5 break-words">{l.needs}</dd>
                   </div>
                 </dl>
-                <ButtonLink href={`/start?with=${l.id}`} className="mt-5">
-                  Propose a swap to {l.name}
-                </ButtonLink>
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <ButtonLink href={`/start?with=${l.id}`}>Propose a swap to {l.name}</ButtonLink>
+                  <ButtonLink href={`/partners/${l.id}`}>Read more</ButtonLink>
+                </div>
               </li>
             ))}
           </ul>
