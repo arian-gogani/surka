@@ -17,6 +17,7 @@ import {
   logOperatorMinutes,
   markProposed,
   replaceCommitments,
+  retireTrackingLink,
   unlistParty,
   verifyCommitment,
 } from "@/lib/services/swaps";
@@ -244,6 +245,22 @@ export async function addLinkAction(formData: FormData) {
         destinationUrl: formData.get("destinationUrl"),
       }),
     "Tracking link created.",
+  );
+}
+
+/**
+ * The replacement for an edit that cannot exist.
+ *
+ * The code is in print by the time a destination turns out to be wrong, so the
+ * operator's only honest move is to kill this one and create another. The
+ * message has to say the placement now needs a new link, or a retired typo
+ * leaves the side that published it with nothing at all.
+ */
+export async function retireLinkAction(formData: FormData) {
+  await onSwap(
+    formData,
+    async () => retireTrackingLink(await getDb(), String(formData.get("code") ?? "")),
+    "Link retired. It doesn't redirect anymore, so create a new one if the placement is still running.",
   );
 }
 

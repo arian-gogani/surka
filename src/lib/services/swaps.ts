@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, notInArray, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { z } from "zod";
 import type { Db } from "@/db/client";
@@ -819,10 +819,33 @@ export async function getSwapDetail(db: Db, swapId: string): Promise<SwapDetail>
   };
 }
 
-export interface SideView extends SwapDetail {
+/**
+ * One placement the other side made, as the figure it produced and nothing else.
+ *
+ * Deliberately not a TrackingLink. That row carries the code, and a code is the
+ * other side's to publish: whoever holds it can point their own readers at it,
+ * or hand it on, and every one of those clicks lands in the other side's column
+ * as traffic this side sent them.
+ */
+export interface PartnerPlacement {
+  label: string;
+  clicks: number;
+}
+
+export interface SideView extends Omit<SwapDetail, "trackingLinks"> {
   side: Side;
   token: string;
   records: Record<Side, TrackRecord>;
+  /** Only the links this side placed, which measure the traffic it sent. */
+  trackingLinks: TrackingLink[];
+  /**
+   * The other side's placements, which measure the traffic this side received.
+   *
+   * Each side could see only what it sent, so neither could put a figure
+   * against the results it was being asked to report, on a page that tells them
+   * these links exist so both sides can see what the swap produced.
+   */
+  partnerPlacements: PartnerPlacement[];
 }
 
 /** What one side sees through its private link. Marks the link as viewed. */
@@ -837,7 +860,20 @@ export async function getSwapForToken(db: Db, token: string, now = new Date()): 
     await logEvent(db, access.swapId, "viewed", { side: access.side });
   }
   await db.update(swapAccess).set({ lastViewedAt: now }).where(eq(swapAccess.token, token));
-  return { ...detail, side: access.side, token, records: { a: recordA, b: recordB } };
+  return {
+    ...detail,
+    side: access.side,
+    token,
+    records: { a: recordA, b: recordB },
+    // Split here and not in the page. The page is a server component, so every
+    // field of this object is serialised into the document whether or not
+    // anything renders it: filtering at the far end of the wire would have left
+    // the other side's codes sitting in the HTML of this side's page.
+    trackingLinks: detail.trackingLinks.filter((l) => l.side === access.side),
+    partnerPlacements: detail.trackingLinks
+      .filter((l) => l.side !== access.side)
+      .map((l) => ({ label: l.label, clicks: l.clicks })),
+  };
 }
 
 /** The partner's answer to the deal sheet: accept, counter, or decline. */
@@ -1041,22 +1077,79 @@ export async function addTrackingLink(db: Db, swapId: string, input: unknown): P
   throw new Error("Could not allocate a tracking code");
 }
 
-/** Counts a click and returns where to send the visitor, or null. */
+/**
+ * The operator taking a link out of service.
+ *
+ * There is no edit, on purpose. By the time anyone notices the destination is
+ * wrong the code is already printed in a newsletter or a tweet, and quietly
+ * repointing it would change what the reader was promised after the fact.
+ * Retiring this one and creating another is the honest operation, and it leaves
+ * the old URL dead rather than wrong.
+ */
+export async function retireTrackingLink(db: Db, code: string, now = new Date()): Promise<TrackingLink> {
+  const [retired] = await db
+    .update(trackingLinks)
+    .set({ retiredAt: now })
+    .where(and(eq(trackingLinks.code, code), isNull(trackingLinks.retiredAt)))
+    .returning();
+  if (retired) {
+    await logEvent(db, retired.swapId, "link_retired", { side: retired.side, detail: retired.label });
+    return retired;
+  }
+  // Retiring an already retired link is not a failure: the operator asked for
+  // it to be out of service and it is. Guarding the write on retiredAt rather
+  // than overwriting it keeps the moment the link stopped working where it was,
+  // and keeps a double-tapped Retire from writing a second line into a timeline
+  // both sides read.
+  const [existing] = await db.select().from(trackingLinks).where(eq(trackingLinks.code, code)).limit(1);
+  if (!existing) throw new SurkaError("That tracking link doesn't exist.", "not_found");
+  return existing;
+}
+
+/**
+ * Swap statuses that stop a code resolving, whatever its own state.
+ *
+ * Completed is deliberately not here: an issue is read for weeks after a swap
+ * finishes, and those late clicks are the result. Declined and cancelled are a
+ * different thing. Nothing used to check the swap at all, so a link from a deal
+ * that never happened kept sending real readers to an ex-partner's site and
+ * kept adding to a figure the other side reads as traffic this swap produced.
+ */
+const CALLED_OFF: SwapStatus[] = ["declined", "cancelled"];
+
+/** The one row a code may still resolve to: not retired, on a swap still on. */
+function liveLink(db: Db, code: string) {
+  return and(
+    eq(trackingLinks.code, code),
+    isNull(trackingLinks.retiredAt),
+    // A subquery rather than a join, because recordClick is an update and has
+    // to express the same condition in a single statement.
+    inArray(
+      trackingLinks.swapId,
+      db.select({ id: swaps.id }).from(swaps).where(notInArray(swaps.status, CALLED_OFF)),
+    ),
+  );
+}
+
 /** Where a code points, without counting a visit. */
 export async function destinationFor(db: Db, code: string): Promise<string | null> {
   const [row] = await db
     .select({ destinationUrl: trackingLinks.destinationUrl })
     .from(trackingLinks)
-    .where(eq(trackingLinks.code, code))
+    .where(liveLink(db, code))
     .limit(1);
   return row?.destinationUrl ?? null;
 }
 
+/** Counts a click and returns where to send the visitor, or null. */
 export async function recordClick(db: Db, code: string): Promise<string | null> {
   const [row] = await db
     .update(trackingLinks)
+    // One statement, so a code that no longer resolves cannot be counted on the
+    // way to being refused. The count is half of what both sides judge the swap
+    // on, and a retired link was still adding to it.
     .set({ clicks: sql`${trackingLinks.clicks} + 1` })
-    .where(eq(trackingLinks.code, code))
+    .where(liveLink(db, code))
     .returning({ destinationUrl: trackingLinks.destinationUrl });
   return row?.destinationUrl ?? null;
 }

@@ -20,6 +20,7 @@ import {
   logMinutesAction,
   markProposedAction,
   replaceTermsAction,
+  retireLinkAction,
   verifyAction,
 } from "../../actions";
 
@@ -41,6 +42,7 @@ const EVENT_LABEL: Record<string, string> = {
   completed: "Swap completed",
   cancelled: "Swap cancelled",
   link_created: "Tracking link created",
+  link_retired: "Tracking link retired",
   result_added: "Result reported",
   time_logged: "Time logged",
 };
@@ -220,7 +222,28 @@ export default async function SwapAdminPage({
                       {l.clicks} {l.clicks === 1 ? "click" : "clicks"}
                     </span>
                   </div>
-                  <CopyLink url={`${appUrl()}/r/${l.code}`} />
+                  {l.retiredAt ? (
+                    // No copy button on a dead code. The only reason to copy
+                    // one is to publish it, and this one 404s now. The count
+                    // stays: those visits happened, and both sides read it.
+                    <p className="text-[13px] text-muted">
+                      Retired {STAMP.format(l.retiredAt)}. It doesn&apos;t redirect anymore.
+                    </p>
+                  ) : (
+                    <>
+                      <CopyLink url={`${appUrl()}/r/${l.code}`} />
+                      {/* Retire, not edit. This code is already printed in
+                          somebody's newsletter, so repointing it would change
+                          what a reader was promised after they read it. */}
+                      <form action={retireLinkAction} className="mt-3">
+                        <input type="hidden" name="swapId" value={d.swap.id} />
+                        <input type="hidden" name="code" value={l.code} />
+                        <Button type="submit" variant="danger" className="min-h-9 px-3 text-sm">
+                          Retire this link
+                        </Button>
+                      </form>
+                    </>
+                  )}
                 </li>
               ))}
             </ul>

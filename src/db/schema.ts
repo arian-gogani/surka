@@ -208,6 +208,21 @@ export const trackingLinks = pgTable(
     label: text("label").notNull(),
     destinationUrl: text("destination_url").notNull(),
     clicks: integer("clicks").notNull().default(0),
+    /**
+     * When the operator took this link out of service, or null.
+     *
+     * There is no edit for a tracking link, because by the time anyone notices
+     * a wrong destination the code is already printed in somebody's newsletter.
+     * Retiring one and making another is the only honest operation. Without a
+     * way to retire, a link lived forever: a typo kept sending real readers to
+     * the wrong place, and a link on a cancelled or declined swap kept
+     * delivering traffic to an ex-partner and kept adding to a count both
+     * sides read as this swap's result.
+     *
+     * Retiring never touches clicks. The visits happened, and the count is
+     * half of what the two sides use to judge whether to swap again.
+     */
+    retiredAt: timestamp("retired_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [index("tracking_links_swap_idx").on(t.swapId)],
