@@ -63,20 +63,21 @@ describe("the migration journal", () => {
  * Every other test opens an empty database, so the whole class of migrations
  * that fail only against existing rows is invisible: a NOT NULL column with no
  * default, a unique index over duplicates, a cast that cannot apply. Those
- * abort the deploy at best, and at worst leave the schema ahead of the code.
- *
- * This applies every migration but the last against a database with rows in
- * it, then applies the last one on top.
+ * abort the deploy at best, and at worst leave the schema ahead of the code,
+ * because migrations commit before the build and the build can still fail.
  */
-describe("the newest migration against a database that already has data", () => {
-  async function openAt(upTo: number) {
+describe("migrating a database that already has rows", () => {
+  /** A database migrated up to, but not including, `tag`. */
+  async function openBefore(tag: string) {
+    const entries = journal().entries;
+    const upTo = entries.findIndex((e) => e.tag === tag);
+    expect(upTo, `no migration tagged ${tag}`).toBeGreaterThan(-1);
+
     const folder = tempFolder();
-    const meta = path.join(folder, "meta");
-    mkdirSync(meta, { recursive: true });
-    const full = journal();
-    const kept = full.entries.slice(0, upTo);
+    mkdirSync(path.join(folder, "meta"), { recursive: true });
+    const kept = entries.slice(0, upTo);
     for (const entry of kept) cpSync(path.join(DRIZZLE, `${entry.tag}.sql`), path.join(folder, `${entry.tag}.sql`));
-    writeFileSync(path.join(meta, "_journal.json"), JSON.stringify({ ...full, entries: kept }));
+    writeFileSync(path.join(folder, "meta", "_journal.json"), JSON.stringify({ ...journal(), entries: kept }));
 
     const { PGlite } = await import("@electric-sql/pglite");
     const { drizzle } = await import("drizzle-orm/pglite");
@@ -84,42 +85,53 @@ describe("the newest migration against a database that already has data", () => 
     const client = new PGlite();
     const db = drizzle(client);
     await migrate(db, { migrationsFolder: folder });
-    return { client, db, migrate };
+    /** Applies everything, including `tag` and anything after it. */
+    const finish = () => migrate(db, { migrationsFolder: DRIZZLE });
+    return { client, finish };
   }
 
-  it("applies on top of representative rows", async () => {
-    const entries = journal().entries;
-    const { client, db, migrate } = await openAt(entries.length - 1);
+  /** Rows that look like a real pilot. Valid under every schema version. */
+  const PILOT = `
+    insert into parties (id, name, kind) values
+      ('11111111-1111-4111-8111-111111111111', 'Clinic Scheduler', 'app'),
+      ('22222222-2222-4222-8222-222222222222', 'Practice Manager Weekly', 'newsletter');
+    insert into swaps (id, title, status, party_a_id, party_b_id) values
+      ('33333333-3333-4333-8333-333333333333', 'A swap', 'accepted',
+       '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222');
+    insert into commitments (id, swap_id, side, description, due_date, status) values
+      ('44444444-4444-4444-8444-444444444444', '33333333-3333-4333-8333-333333333333',
+       'a', 'Something', '2026-10-20', 'pending');
+  `;
 
-    // Rows that look like a real pilot, including the shape the newest
-    // migration has to cope with. Two results for one measure is exactly what
-    // the unique index in 0007 would otherwise abort on.
+  it("applies the newest migration on top of representative rows", async () => {
+    const entries = journal().entries;
+    const newest = entries[entries.length - 1]!.tag;
+    const { client, finish } = await openBefore(newest);
+    await client.exec(PILOT);
+
+    await expect(finish()).resolves.toBeUndefined();
+
+    // Nothing was lost on the way through.
+    const parties = await client.query<{ n: number }>("select count(*)::int as n from parties");
+    expect(parties.rows[0]?.n).toBe(2);
+  });
+
+  it("collapses duplicate results rather than aborting on the unique index", async () => {
+    // Pinned to its own migration rather than to "the newest one", because the
+    // duplicate rows below are only insertable before 0007 adds the index.
+    const { client, finish } = await openBefore("0007_one_result_per_measure");
     await client.exec(`
-      insert into parties (id, name, kind) values
-        ('11111111-1111-4111-8111-111111111111', 'Clinic Scheduler', 'app'),
-        ('22222222-2222-4222-8222-222222222222', 'Practice Manager Weekly', 'newsletter');
-      insert into swaps (id, title, status, party_a_id, party_b_id) values
-        ('33333333-3333-4333-8333-333333333333', 'A swap', 'accepted',
-         '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222');
-      insert into commitments (id, swap_id, side, description, due_date, status) values
-        ('44444444-4444-4444-8444-444444444444', '33333333-3333-4333-8333-333333333333',
-         'a', 'Something', '2026-10-20', 'pending');
+      ${PILOT}
       insert into results (swap_id, side, metric, value, created_at) values
         ('33333333-3333-4333-8333-333333333333', 'a', 'installs', 5000, now() - interval '1 day'),
         ('33333333-3333-4333-8333-333333333333', 'a', 'installs', 500, now());
     `);
 
-    await expect(migrate(db, { migrationsFolder: DRIZZLE })).resolves.toBeUndefined();
+    await expect(finish()).resolves.toBeUndefined();
 
-    // The duplicate was collapsed rather than the deploy being aborted, and
-    // the surviving figure is the newest one, which is what the app shows.
-    const rows = await client.query<{ value: number }>(
-      "select value from results where metric = 'installs'",
-    );
+    // The duplicate was collapsed instead of the deploy being aborted, and the
+    // survivor is the newest, which is the figure the app would show.
+    const rows = await client.query<{ value: number }>("select value from results where metric = 'installs'");
     expect(rows.rows.map((r) => r.value)).toEqual([500]);
-
-    // Nothing else was lost on the way through.
-    const parties = await client.query<{ n: number }>("select count(*)::int as n from parties");
-    expect(parties.rows[0]?.n).toBe(2);
   });
 });

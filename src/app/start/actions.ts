@@ -67,6 +67,11 @@ export async function startSwapAction(_previous: StartState, formData: FormData)
     // what is in them has to be saved. They used to be read and discarded, so
     // a returning founder adding the email they forgot last time, or fixing a
     // typo in their name, watched both silently vanish.
+    //
+    // Only from a listing link, though. A swap link proves control of one side
+    // of one swap, and the ordinary flow hands the proposer the partner's swap
+    // link on purpose, so accepting it here let anyone who had ever proposed to
+    // you rewrite your name, website and reminder address later.
     const mine = {
       name: field("yourName"),
       kind: field("yourKind") || "app",
@@ -79,9 +84,15 @@ export async function startSwapAction(_previous: StartState, formData: FormData)
     // never accumulates. Only listed businesses: this is a public id, and it
     // must not be a way to attach yourself to a private one.
     const target = field("with") ? await getListing(db, field("with")) : null;
+    // Asked for a specific business and it is no longer listed. Falling through
+    // used to mint a fresh party named after it, from the prefilled hidden
+    // field, which is a silent duplicate under somebody else's name.
+    if (field("with") && !target) {
+      return fail("That business isn't on the partner list anymore. Pick another, or fill in their details.");
+    }
     aimedAtListing = target !== null;
     const [you, partner] = await Promise.all([
-      returning ? updatePartyIdentity(db, returning.id, mine) : createParty(db, mine),
+      returning ? returning.party : createParty(db, mine),
       target
         ? getParty(db, target.id).then((row) => {
             if (!row) throw new SurkaError("That business isn't listed anymore.", "not_found");
@@ -120,6 +131,11 @@ export async function startSwapAction(_previous: StartState, formData: FormData)
           { status: "proposed", openedBy: "proposer" },
     );
     tokens = created.tokens;
+
+    // After the swap, not before. This used to run in the Promise.all above,
+    // so a swap that was then rejected (two sides the same, a bad title) left
+    // the identity change committed and reported a failure.
+    if (returning?.canEditIdentity) await updatePartyIdentity(db, returning.party.id, mine);
   } catch (error) {
     return fail(messageFor(error));
   }

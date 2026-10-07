@@ -29,12 +29,17 @@ export default async function SentPage({ searchParams }: { searchParams: Promise
 
       <main className="mx-auto max-w-3xl px-5 pb-24 sm:px-8">
         <h1 className="text-[36px] font-semibold leading-[1.05] sm:text-[44px]">
-          {b ? "Your deal sheet is ready." : "Your proposal is on its way."}
+          {b ? "Your deal sheet is ready." : "Your proposal is written down."}
         </h1>
+        {/* Not "on its way". Nothing is emailed when a proposal is aimed at the
+            partner list: the only mail this product sends is the deadline
+            reminder, and that is off until a provider is configured. Saying it
+            was sent would have been a claim about something the code does not
+            do, to the people who got furthest through the funnel. */}
         <p className="mt-5 max-w-prose text-lg leading-relaxed text-muted">
           {b
             ? "Two links, and they are the only way into this swap. Save yours before you close this page."
-            : "They will see it on their own partner-list page, where all their swaps are, and can accept it, suggest changes, or decline. Save your link below before you close this page: it is the only way back in."}
+            : "It is waiting on their own partner-list page. We don't email proposals yet, so we'll nudge them ourselves, and you'll see their answer on your link below. Save it before you close this page: it is the only way back in."}
         </p>
 
         {b ? (

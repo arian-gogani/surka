@@ -9,6 +9,7 @@ import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { createSessionValue, passwordMatches, SESSION_COOKIE, SESSION_TTL_SECONDS } from "@/lib/session";
 import {
   addResult,
+  approveListing,
   addTrackingLink,
   cancelSwap,
   createParty,
@@ -133,6 +134,16 @@ export async function createSwapAction(_prev: NewSwapState, formData: FormData):
     };
   }
   go(`/admin/swaps/${swapId}`, { ok: "Swap created. Check the terms, then send the partner their link." });
+}
+
+export async function approveListingAction(formData: FormData) {
+  await requireOperator();
+  try {
+    await approveListing(await getDb(), String(formData.get("partyId") ?? ""));
+  } catch (error) {
+    go("/admin/listings", { error: messageFor(error) });
+  }
+  go("/admin/listings", { ok: "Approved. It's on the public partner list now." });
 }
 
 export async function unlistPartyAction(formData: FormData) {

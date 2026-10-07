@@ -5,7 +5,7 @@ import { getDb } from "@/db/client";
 import type { SwapStatus } from "@/db/schema";
 import { messageFor } from "@/lib/errors";
 import { signNotice } from "@/lib/notice";
-import { markDelivered, reportResult, respond, setListed, setSideEmail } from "@/lib/services/swaps";
+import { claimParty, markDelivered, reportResult, respond, setSideEmail } from "@/lib/services/swaps";
 
 async function backTo(token: string, params: { ok?: string; error?: string }): Promise<never> {
   const signed = await signNotice(params);
@@ -87,21 +87,23 @@ export async function setEmailAction(formData: FormData) {
   return backTo(token, { ok: "Saved. We'll remind you before each deadline." });
 }
 
-export async function setListedAction(formData: FormData) {
+/**
+ * Mints this side's listing link and sends them to it.
+ *
+ * The listing form used to live on this page and write with the swap link.
+ * That link is shared with the counterparty by design, so it cannot be proof
+ * of who the business is. Claiming moves them onto a link that is.
+ */
+export async function claimListingAction(formData: FormData) {
   const token = String(formData.get("token") ?? "");
-  const listed = formData.get("listed") !== null;
+  let own: string;
   try {
-    await setListed(await getDb(), token, {
-      listed,
-      offers: formData.get("offers"),
-      needs: formData.get("needs"),
-    });
+    own = await claimParty(await getDb(), token);
   } catch (error) {
     return backTo(token, { error: messageFor(error) });
   }
-  return backTo(token, {
-    ok: listed
-      ? "You're on the partner list. Founders can propose swaps to you from there."
-      : "Taken off the partner list.",
+  const signed = await signNotice({
+    ok: "This page is yours. Keep its link: it's how you manage your listing, and there's no password to reset.",
   });
+  redirect(`/p/${own}?${new URLSearchParams(signed)}`);
 }

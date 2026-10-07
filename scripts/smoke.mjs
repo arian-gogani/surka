@@ -242,21 +242,35 @@ async function run() {
   check(finished.html.includes("This swap is complete"), "swap completes when everything is checked");
 
   console.log("The partner list, and proposing from it");
-  const thin = await submit(`/d/${partnerToken}`, 'name="offers"', {
-    token: partnerToken,
-    listed: "yes",
-    offers: "stuff",
-    needs: "",
-  });
+  // The swap link is shared with the counterparty by design, so it cannot be
+  // the proof of who the business is. Listing starts by claiming a link that is.
+  const claimed = await submit(`/d/${partnerToken}`, "Set up your listing", { token: partnerToken });
+  const ownPath = new URL(claimed.location, BASE).pathname;
+  check(/^\/p\/[A-Za-z0-9_-]{24}$/.test(ownPath), "a swap link claims a listing link once");
+  check(!ownPath.includes(partnerToken), "the claimed link is a new one, not the swap link");
+
+  const again = await submit(`/d/${partnerToken}`, "Set up your listing", { token: partnerToken });
+  check(
+    query(again.location, "error")?.includes("already has a listing link") ?? false,
+    "a second claim from a swap link is refused",
+  );
+
+  const ownToken = ownPath.slice("/p/".length);
+  const thin = await submit(ownPath, 'name="offers"', { token: ownToken, listed: "yes", offers: "stuff", needs: "" });
   check(query(thin.location, "error") !== null, "a listing has to say something useful");
 
-  const listed = await submit(`/d/${partnerToken}`, 'name="offers"', {
-    token: partnerToken,
+  const listed = await submit(ownPath, 'name="offers"', {
+    token: ownToken,
     listed: "yes",
     offers: "A dedicated section to 9,000 practice managers",
     needs: "A scheduling tool my readers would use daily",
   });
-  check(query(listed.location, "ok")?.includes("partner list") ?? false, "partner adds itself to the list");
+  check(query(listed.location, "ok")?.includes("Saved") ?? false, "partner asks to be listed");
+  check(!(await get("/partners")).html.includes("Practice Manager Weekly"), "asking is not appearing");
+
+  const pendingPage = await get("/admin/listings");
+  const pendingId = pendingPage.html.match(/name="partyId" value="([0-9a-f-]{36})"/)?.[1];
+  await submit("/admin/listings", 'name="partyId"', { partyId: pendingId });
 
   const list = await get("/partners");
   check(list.html.includes("Practice Manager Weekly"), "the list shows the business");
@@ -339,7 +353,17 @@ async function run() {
   const manage = await get(managePath);
   check(manage.html.includes("Receipt Butler"), "the private link opens the listing");
   check(manage.html.includes("No swaps through Surka yet"), "a brand new listing says it has no record");
-  check((await get("/partners")).html.includes("Receipt Butler"), "the new listing is on the public list");
+  // Nothing verifies the name typed into that form, and the directory is an
+  // indexable page, so a person reads it before a stranger can.
+  check(!(await get("/partners")).html.includes("Receipt Butler"), "a new listing is not public on submit");
+  check(visible(manage.html).includes("by hand before it goes public"), "the holder is told it is being read");
+
+  const queue = await get("/admin/listings");
+  check(queue.html.includes("1 waiting on you"), "the operator sees the request");
+  const waitingId = queue.html.match(/name="partyId" value="([0-9a-f-]{36})"/)?.[1];
+  const approved = await submit("/admin/listings", 'name="partyId"', { partyId: waitingId });
+  check(query(approved.location, "ok")?.includes("public partner list") ?? false, "the operator approves it");
+  check((await get("/partners")).html.includes("Receipt Butler"), "the approved listing is on the public list");
 
   const removed = await submit(managePath, 'name="needs"', {
     token: managePath.slice("/p/".length),
@@ -365,12 +389,16 @@ async function run() {
     offers: "A slot in our onboarding email to 2,000 new users a month",
     needs: "A billing or scheduling tool my users would pay for",
   });
-  check(query(relisted.location, "ok")?.includes("live") ?? false, "the holder can put the listing back");
+  check(query(relisted.location, "ok")?.includes("Saved") ?? false, "the holder can ask to go back on");
 
   const moderation = await get("/admin/listings");
   check(moderation.html.includes("Receipt Butler"), "the operator sees every listing");
-  const partyId = moderation.html.match(/name="partyId" value="([0-9a-f-]{36})"/)?.[1];
-  const tookDown = await submit("/admin/listings", 'name="partyId"', { partyId });
+  // Back in the queue after re-requesting, so approve it before taking it off.
+  const requeuedId = moderation.html.match(/name="partyId" value="([0-9a-f-]{36})"/)?.[1];
+  await submit("/admin/listings", "Put it on the list", { partyId: requeuedId });
+  // By button text, not by field name: the approve and decline forms both
+  // carry a partyId, so a field marker picks whichever comes first.
+  const tookDown = await submit("/admin/listings", "Take off the list", { partyId: requeuedId });
   check(query(tookDown.location, "ok")?.includes("Taken off") ?? false, "the operator can take a listing down");
   check(!(await get("/partners")).html.includes("Receipt Butler"), "a moderated listing leaves the public page");
   // A public form anyone can post to needs a remedy that is not destructive.

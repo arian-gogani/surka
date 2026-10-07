@@ -55,12 +55,22 @@ export const parties = pgTable("parties", {
   /** Operator-only. Never shown to either side, and never in the directory. */
   notes: text("notes"),
   /**
-   * When this business asked to be findable, or null.
+   * When this business asked to be on the partner list, or null.
    *
-   * Opt-in, and only ever set by someone holding one of that business's swap
-   * links, which is what proves they are it. Until a swap needed two founders
-   * who already knew each other, which meant every swap needed the operator to
-   * personally know both of them.
+   * Opt-in, and only ever set by someone holding one of that business's links,
+   * which is what proves they are it. Asking is not the same as appearing:
+   * see listedAt.
+   */
+  listingRequestedAt: timestamp("listing_requested_at", { withTimezone: true }),
+  /**
+   * When the operator let it onto the public list, or null.
+   *
+   * Nothing verifies that a listing is the business it claims to be, and the
+   * directory is an indexable page carrying a name, a link and two paragraphs
+   * of self-written copy. Publishing on submit meant anyone could put a well
+   * known company, or a competitor, on it and say anything under their name.
+   * Email verification is the usual answer and needs an email provider; one
+   * operator reading one queue needs nothing and holds today.
    */
   listedAt: timestamp("listed_at", { withTimezone: true }),
   createdAt: createdAt(),
@@ -84,7 +94,10 @@ export const partyAccess = pgTable(
     lastViewedAt: timestamp("last_viewed_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
-  (t) => [index("party_access_party_idx").on(t.partyId)],
+  // Unique, not just indexed: one listing link per business, so two
+  // simultaneous claims cannot both mint one, and a business that already has
+  // a link never gets a second handed to a swap-link holder.
+  (t) => [uniqueIndex("party_access_party_idx").on(t.partyId)],
 );
 
 /** One trade between two parties. Side A proposes, side B receives. */

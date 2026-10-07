@@ -69,10 +69,16 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
           inTwoWeeks={inTwoWeeks}
           prefill={{
             from: you ? from ?? null : null,
-            name: you?.name ?? "",
-            kind: you?.kind ?? "",
-            website: you?.website ?? "",
-            email: you?.email ?? "",
+            name: you?.party.name ?? "",
+            kind: you?.party.kind ?? "",
+            website: you?.party.website ?? "",
+            // Only from a listing link. The counterparty holds the swap link by
+            // design, and this field is where the partner typed an address on
+            // the promise that it "isn't shared or used for anything else".
+            email: you?.canEditIdentity ? (you.party.email ?? "") : "",
+            // A swap link carries the business forward but cannot rewrite it,
+            // so the fields are shown as settled rather than as editable.
+            editable: you?.canEditIdentity ?? true,
           }}
           target={
             target

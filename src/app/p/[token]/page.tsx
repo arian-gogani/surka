@@ -39,6 +39,7 @@ export default async function ListingPage({ params, searchParams }: Props) {
 
   const { party, record, swaps } = view;
   const listed = party.listedAt !== null;
+  const waiting = !listed && party.listingRequestedAt !== null;
   const contact = contactEmail();
 
   return (
@@ -59,10 +60,14 @@ export default async function ListingPage({ params, searchParams }: Props) {
           <p className="mt-3 text-lg text-muted">
             {KIND_LABEL[party.kind]} &middot; {describeRecord(record)}
           </p>
+          {/* Three states, and conflating the middle one with "not listed"
+              would read as though the submission had failed. */}
           <p className="mt-3 max-w-prose text-muted">
             {listed
               ? "You're on the partner list, so founders can propose swaps to you from there."
-              : "You're not on the partner list right now, so nobody can find you from it."}
+              : waiting
+                ? "We read every new listing by hand before it goes public, because nothing else can tell whether a listing really is the business it names. Usually within a day. Your link works in the meantime, and you can still start a swap with a partner you already have."
+                : "You're not on the partner list right now, so nobody can find you from it."}
           </p>
         </div>
 
@@ -90,9 +95,11 @@ export default async function ListingPage({ params, searchParams }: Props) {
           </Field>
           <div className="flex flex-wrap items-center gap-3">
             <Button type="submit" name="listed" value="yes" variant="action">
-              {listed ? "Save" : "Put me back on the list"}
+              {listed ? "Save" : waiting ? "Save changes" : "Ask to be listed"}
             </Button>
-            {listed ? <Button type="submit">Take me off the list</Button> : null}
+            {listed || waiting ? (
+              <Button type="submit">{listed ? "Take me off the list" : "Cancel the request"}</Button>
+            ) : null}
           </div>
           <input type="hidden" name="token" value={token} />
         </form>

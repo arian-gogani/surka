@@ -19,8 +19,11 @@ import {
   markProposed,
   partyRecord,
   partyRecords,
+  claimParty,
   createListing,
   getListingForToken,
+  approveListing,
+  pendingListings,
   getListing,
   getParty,
   listListings,
@@ -348,11 +351,16 @@ describe("the partner list", () => {
 
   it("lists the business on the holder's own side, and only that one", async () => {
     const { app, newsletter, tokens } = await agreed();
-    await setListed(db, tokens.b, {
+    await setListed(db, await claimParty(db, tokens.b), {
       listed: "yes",
       offers: "A dedicated section to 9,000 practice managers",
       needs: "A tool my readers would actually use",
     });
+    // Asking is not appearing: nothing can tell whether a listing is the
+    // business it names, so a person reads it first.
+    expect(await listListings(db, NOW)).toEqual([]);
+    expect((await pendingListings(db, NOW)).map((l) => l.id)).toEqual([newsletter.id]);
+    await approveListing(db, newsletter.id, NOW);
 
     const listings = await listListings(db, NOW);
     expect(listings.map((l) => l.id)).toEqual([newsletter.id]);
@@ -369,11 +377,12 @@ describe("the partner list", () => {
       contactName: "Sam",
       notes: "Slow to reply. Chase twice.",
     });
-    await setListed(db, tokens.b, {
+    await setListed(db, await claimParty(db, tokens.b), {
       listed: "yes",
       offers: "A dedicated section in the next issue",
       needs: "Something my readers would use daily",
     });
+    await approveListing(db, newsletter.id, NOW);
 
     const [listing] = await listListings(db, NOW);
     const published = JSON.stringify(listing);
@@ -390,15 +399,39 @@ describe("the partner list", () => {
 
   it("takes a business back off without losing what it wrote", async () => {
     const { newsletter, tokens } = await agreed();
-    await setListed(db, tokens.b, {
+    // Claimed once. A second claim from a swap link is refused on purpose, so
+    // the link is kept rather than re-derived.
+    const own = await claimParty(db, tokens.b);
+    await setListed(db, own, {
       listed: "yes",
       offers: "A dedicated section in the next issue",
       needs: "Something my readers would use daily",
     });
-    await setListed(db, tokens.b, { listed: "" });
+    await approveListing(db, newsletter.id, NOW);
+    await setListed(db, own, { listed: "" });
     expect(await listListings(db, NOW)).toEqual([]);
     // Delisting is not deleting: re-listing shouldn't mean retyping both boxes.
     expect((await getParty(db, newsletter.id))?.offers).toContain("dedicated section");
+  });
+
+  it("will not approve a business that never asked", async () => {
+    const { newsletter } = await agreed();
+    await expectSurka(approveListing(db, newsletter.id, NOW), "not_found");
+    expect(await listListings(db, NOW)).toEqual([]);
+  });
+
+  it("clears the request when the operator declines, so it does not come back", async () => {
+    const { newsletter, tokens } = await agreed();
+    await setListed(db, await claimParty(db, tokens.b), {
+      listed: "yes",
+      offers: "Buy cheap followers at spam.example",
+      needs: "Anyone at all, no questions asked",
+    });
+    expect(await pendingListings(db, NOW)).toHaveLength(1);
+
+    await unlistParty(db, newsletter.id);
+    expect(await pendingListings(db, NOW)).toEqual([]);
+    expect(await listListings(db, NOW)).toEqual([]);
   });
 
   it("refuses an unknown link rather than listing a guess", async () => {
@@ -410,11 +443,12 @@ describe("the partner list", () => {
 
   it("only resolves a listing for a business that is actually listed", async () => {
     const { app, newsletter, tokens } = await agreed();
-    await setListed(db, tokens.b, {
+    await setListed(db, await claimParty(db, tokens.b), {
       listed: "yes",
       offers: "A dedicated section in the next issue",
       needs: "Something my readers would use daily",
     });
+    await approveListing(db, newsletter.id, NOW);
     // /start?with= takes a public id, so it must not be a way to attach a
     // proposal to a business that never asked to be found.
     expect(await getListing(db, newsletter.id, NOW)).not.toBeNull();
@@ -439,6 +473,12 @@ describe("listing without a swap", () => {
     const { party, token } = await createListing(db, good, NOW);
     expect(token).toMatch(/^[A-Za-z0-9_-]{24}$/);
 
+    // The public form is a request. Nothing verifies the name typed into it,
+    // and the directory is an indexable page, so a person reads it first.
+    expect(await listListings(db, NOW)).toEqual([]);
+    expect((await pendingListings(db, NOW)).map((l) => l.id)).toEqual([party.id]);
+    await approveListing(db, party.id, NOW);
+
     const listings = await listListings(db, NOW);
     expect(listings.map((l) => l.id)).toEqual([party.id]);
     expect(listings[0]?.record).toEqual({ kept: 0, resolved: 0, score: null });
@@ -462,8 +502,11 @@ describe("listing without a swap", () => {
   });
 
   it("lets the holder edit and remove the listing with that link", async () => {
-    const { token } = await createListing(db, good, NOW);
+    const { party, token } = await createListing(db, good, NOW);
+    await approveListing(db, party.id, NOW);
     await setListed(db, token, { listed: "yes", offers: "A dedicated slot, every week", needs: good.needs });
+    // Editing a listing that is already public keeps it public: only the first
+    // appearance waits on a person, because that is where the risk is.
     expect((await listListings(db, NOW))[0]?.offers).toBe("A dedicated slot, every week");
 
     await setListed(db, token, { listed: "" });
@@ -476,7 +519,7 @@ describe("listing without a swap", () => {
     const { party, token } = await createListing(db, good, NOW);
     // /start?from= takes either kind of link, which is what makes the record
     // follow someone from their listing into their first swap.
-    expect((await partyForToken(db, token))?.id).toBe(party.id);
+    expect((await partyForToken(db, token))?.party.id).toBe(party.id);
     // Addresses are normalised on the way in, so reminders don't double-send.
     expect(party.email).toBe("pat@invoicenudge.example");
   });
@@ -528,6 +571,9 @@ describe("what the operator can see and undo", () => {
       },
       NOW,
     );
+    expect((await pilotMetrics(db, NOW)).pendingListings).toBe(1);
+    expect((await pilotMetrics(db, NOW)).listedParties).toBe(0);
+    await approveListing(db, party.id, NOW);
     expect((await pilotMetrics(db, NOW)).listedParties).toBe(1);
 
     await unlistParty(db, party.id);
@@ -762,10 +808,44 @@ describe("the Phase 0 gate counts whole swaps", () => {
 });
 
 describe("a track record survives into the next swap", () => {
-  it("resolves the holder's own business from their link", async () => {
+  it("resolves the holder's own business from their link, without the right to rewrite it", async () => {
     const { app, newsletter, tokens } = await seedSwap();
-    await expect(partyForToken(db, tokens.a)).resolves.toMatchObject({ id: app.id });
-    await expect(partyForToken(db, tokens.b)).resolves.toMatchObject({ id: newsletter.id });
+    // A swap link carries the business into a new swap but does not prove you
+    // are that business. The counterparty holds this link by design.
+    await expect(partyForToken(db, tokens.a)).resolves.toMatchObject({
+      party: { id: app.id },
+      canEditIdentity: false,
+    });
+    await expect(partyForToken(db, tokens.b)).resolves.toMatchObject({
+      party: { id: newsletter.id },
+      canEditIdentity: false,
+    });
+
+    const own = await claimParty(db, tokens.b);
+    await expect(partyForToken(db, own)).resolves.toMatchObject({
+      party: { id: newsletter.id },
+      canEditIdentity: true,
+    });
+  });
+
+  it("refuses to mint a second listing link for a business that has one", async () => {
+    // Otherwise the takeover comes straight back: the ordinary flow hands the
+    // proposer the partner's swap link, so a second claim from it would hand
+    // them the business too.
+    const { tokens } = await seedSwap();
+    const first = await claimParty(db, tokens.b);
+    await expectSurka(claimParty(db, tokens.b), "conflict");
+    // The listing link itself is idempotent: it already is the proof.
+    expect(await claimParty(db, first)).toBe(first);
+  });
+
+  it("will not let a swap link rewrite the business or its listing", async () => {
+    const { newsletter, tokens } = await seedSwap();
+    await expectSurka(
+      setListed(db, tokens.b, { listed: "yes", offers: "x".repeat(20), needs: "y".repeat(20) }),
+      "not_allowed",
+    );
+    expect((await getParty(db, newsletter.id))?.listingRequestedAt).toBeNull();
   });
 
   it("returns nothing for a token that isn't real, so no identity leaks", async () => {
@@ -786,7 +866,7 @@ describe("a track record survives into the next swap", () => {
     const other = await createParty(db, { name: "Someone New", kind: "newsletter" });
     const second = await createSwap(db, {
       title: "A second swap for the same business",
-      partyAId: carried.id,
+      partyAId: carried.party.id,
       partyBId: other.id,
       commitments: [
         { side: "a", description: "Another thing from me", dueDate: "2026-11-01" },

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { z } from "zod";
 import type { Db } from "@/db/client";
@@ -97,48 +97,113 @@ async function requireAccess(db: Db, token: string): Promise<SwapAccess> {
 
 // Parties ------------------------------------------------------------------
 
-/** Which business a link proves control of, and the swap it came from if any. */
+/**
+ * What a link proves, and about what.
+ *
+ * The distinction is the whole authorisation model, so it lives in the type.
+ * A "swap" link proves control of one side of one swap: answer that deal
+ * sheet, deliver against it, report on it. A "party" link proves control of
+ * the business itself: its name, its website, the address reminders go to, and
+ * its public listing.
+ *
+ * Treating them as interchangeable was a takeover. The ordinary public flow
+ * hands the proposer the partner's swap link on purpose, because somebody has
+ * to send it. If that link also meant "I am this business", then anyone who
+ * had ever proposed to you could later rewrite your name and website, point
+ * your reminders at themselves, and then read the swap links for your other
+ * swaps out of the reminder emails that followed.
+ */
+type TokenKind = "party" | "swap";
+
 interface Holder {
+  kind: TokenKind;
   partyId: string;
   swapId: string | null;
   side: Side | null;
 }
 
-/**
- * Resolve either kind of link to the business behind it.
- *
- * Two kinds exist because a business can exist before any swap does. A swap
- * link proves control of one side of that swap; a listing link proves control
- * of the business itself, which is what lets someone list before their first
- * swap. Both are unguessable secrets, and neither is an account.
- */
 async function holderOf(db: Db, token: string): Promise<Holder | null> {
   if (!token) return null;
   const [listing] = await db.select().from(partyAccess).where(eq(partyAccess.token, token)).limit(1);
-  if (listing) return { partyId: listing.partyId, swapId: null, side: null };
+  if (listing) return { kind: "party", partyId: listing.partyId, swapId: null, side: null };
   const [access] = await db.select().from(swapAccess).where(eq(swapAccess.token, token)).limit(1);
   if (!access) return null;
   const swap = await requireSwap(db, access.swapId);
   return {
+    kind: "swap",
     partyId: access.side === "a" ? swap.partyAId : swap.partyBId,
     swapId: swap.id,
     side: access.side,
   };
 }
 
+const NOT_YOURS =
+  "That link acts on one swap, not on the business. Use your listing link, or email us for one.";
+
+/** Rejects a swap link where only proof of the business itself will do. */
+async function requirePartyHolder(db: Db, token: string): Promise<Holder> {
+  const holder = await holderOf(db, token);
+  if (!holder) {
+    throw new SurkaError("This link isn't valid. Ask the person who sent it for a new one.", "not_found");
+  }
+  if (holder.kind !== "party") throw new SurkaError(NOT_YOURS, "not_allowed");
+  return holder;
+}
+
 /**
- * The business a link belongs to.
+ * A swap link holder taking ownership of its own side's business.
  *
- * Holding the token proves control, which is what makes it safe to carry the
- * same party into a new swap. Without this, every swap started from the public
- * form mints a fresh business, so a founder's track record never accumulates
- * and "no swaps yet" shows forever.
+ * First claim wins, and there is no second. A business that already has a
+ * listing link keeps it: minting another for whoever holds a swap link would
+ * put the takeover straight back, because the ordinary flow gives the proposer
+ * the partner's swap link. The cost is that a founder who loses their listing
+ * link cannot mint a replacement from a swap link, which is the right way
+ * round for a credential that is the entire account.
  */
-export async function partyForToken(db: Db, token: string): Promise<Party | null> {
+export async function claimParty(db: Db, token: string): Promise<string> {
+  const holder = await holderOf(db, token);
+  if (!holder) {
+    throw new SurkaError("This link isn't valid. Ask the person who sent it for a new one.", "not_found");
+  }
+  if (holder.kind === "party") return token;
+
+  const taken = new SurkaError(
+    "This business already has a listing link. Use that one, or email us if it's lost.",
+    "conflict",
+  );
+  const [existing] = await db
+    .select({ token: partyAccess.token })
+    .from(partyAccess)
+    .where(eq(partyAccess.partyId, holder.partyId))
+    .limit(1);
+  if (existing) throw taken;
+
+  // Unique on partyId, so two simultaneous claims cannot both win.
+  const [row] = await db
+    .insert(partyAccess)
+    .values({ token: newAccessToken(), partyId: holder.partyId })
+    .onConflictDoNothing()
+    .returning({ token: partyAccess.token });
+  if (!row) throw taken;
+  return row.token;
+}
+
+/**
+ * The business a link belongs to, and whether that link may rewrite it.
+ *
+ * Carrying a business into a new swap is fine from either kind of link: it
+ * only reuses a row. Rewriting the name, website or address is not, so the
+ * caller is told which kind it is holding rather than left to assume.
+ */
+export async function partyForToken(
+  db: Db,
+  token: string,
+): Promise<{ party: Party; canEditIdentity: boolean } | null> {
   const holder = await holderOf(db, token);
   if (!holder) return null;
   const [party] = await db.select().from(parties).where(eq(parties.id, holder.partyId)).limit(1);
-  return party ?? null;
+  if (!party) return null;
+  return { party, canEditIdentity: holder.kind === "party" };
 }
 
 export async function createParty(db: Db, input: unknown): Promise<Party> {
@@ -196,26 +261,34 @@ export async function setListed(
   now = new Date(),
 ): Promise<Party> {
   const values = parse(listingInput, input);
-  const holder = await holderOf(db, token);
-  if (!holder) {
-    throw new SurkaError("This link isn't valid. Ask the person who sent it for a new one.", "not_found");
-  }
+  // A listing is a claim about the business, so only the business's own link
+  // may make it. A swap link from a declined proposal used to keep rewriting
+  // the other side's public copy forever.
+  const holder = await requirePartyHolder(db, token);
+  const [current] = await db
+    .select({ listedAt: parties.listedAt })
+    .from(parties)
+    .where(eq(parties.id, holder.partyId))
+    .limit(1);
+  if (!current) throw new SurkaError("That business doesn't exist.", "not_found");
   const [party] = await db
     .update(parties)
     .set(
       values.listed
-        ? { offers: values.offers, needs: values.needs, listedAt: now }
-        : { listedAt: null },
+        ? {
+            offers: values.offers,
+            needs: values.needs,
+            listingRequestedAt: now,
+            // Editing a listing that is already public keeps it public. Only
+            // the first appearance waits on a person, because that is where
+            // the impersonation risk is.
+            ...(current.listedAt ? {} : { listedAt: null }),
+          }
+        : { listingRequestedAt: null, listedAt: null },
     )
     .where(eq(parties.id, holder.partyId))
     .returning();
   if (!party) throw new SurkaError("That business doesn't exist.", "not_found");
-  // Events hang off a swap, and a listing link has none.
-  if (holder.swapId) {
-    await logEvent(db, holder.swapId, values.listed ? "listed" : "unlisted", {
-      side: holder.side ?? undefined,
-    });
-  }
   return party;
 }
 
@@ -230,13 +303,85 @@ export async function setListed(
  */
 export async function unlistParty(db: Db, partyId: string): Promise<Party> {
   if (!isUuid(partyId)) throw new SurkaError("That business doesn't exist.", "not_found");
+  // Clears the request too, or a declined listing would sit in the queue
+  // forever waiting to be declined again.
   const [party] = await db
     .update(parties)
-    .set({ listedAt: null })
+    .set({ listedAt: null, listingRequestedAt: null })
     .where(eq(parties.id, partyId))
     .returning();
   if (!party) throw new SurkaError("That business doesn't exist.", "not_found");
   return party;
+}
+
+/**
+ * The operator letting a requested listing onto the public page.
+ *
+ * The whole gate. Nothing in the product can tell whether a listing is the
+ * business it claims to be, so one person reads it before a stranger can.
+ */
+export async function approveListing(db: Db, partyId: string, now = new Date()): Promise<Party> {
+  if (!isUuid(partyId)) throw new SurkaError("That business doesn't exist.", "not_found");
+  const [party] = await db
+    .update(parties)
+    .set({ listedAt: now })
+    .where(and(eq(parties.id, partyId), isNotNull(parties.listingRequestedAt)))
+    .returning();
+  if (!party) throw new SurkaError("That business hasn't asked to be listed.", "not_found");
+  return party;
+}
+
+/**
+ * Proposals aimed at the partner list that the recipient has not opened.
+ *
+ * Nothing emails a proposal, so a swap aimed at a listing reaches its
+ * recipient only if they reopen the link they were told to bookmark. Without
+ * this the directory funnel ended in silence for the proposer and invisibility
+ * for the recipient, which is the worst place for it to end because those are
+ * the people who got furthest. The operator chases them by hand, which is what
+ * the pilot does for everything else too.
+ */
+export async function unseenProposals(db: Db): Promise<
+  { swapId: string; title: string; partnerName: string; partnerEmail: string | null }[]
+> {
+  const pb = alias(parties, "pb");
+  return db
+    .select({
+      swapId: swaps.id,
+      title: swaps.title,
+      partnerName: pb.name,
+      partnerEmail: pb.email,
+    })
+    .from(swaps)
+    .innerJoin(pb, eq(pb.id, swaps.partyBId))
+    .innerJoin(swapAccess, and(eq(swapAccess.swapId, swaps.id), eq(swapAccess.side, "b")))
+    .where(and(eq(swaps.openedBy, "directory"), eq(swaps.status, "proposed"), isNull(swapAccess.lastViewedAt)))
+    .orderBy(asc(swaps.proposedAt));
+}
+
+/** Listings waiting on the operator, oldest first: a queue, not a feed. */
+export async function pendingListings(db: Db, now = new Date()): Promise<Listing[]> {
+  const rows = await db
+    .select({
+      id: parties.id,
+      name: parties.name,
+      kind: parties.kind,
+      website: parties.website,
+      offers: parties.offers,
+      needs: parties.needs,
+      listedAt: parties.listingRequestedAt,
+    })
+    .from(parties)
+    .where(and(isNotNull(parties.listingRequestedAt), isNull(parties.listedAt)))
+    .orderBy(asc(parties.listingRequestedAt));
+  const records = await partyRecords(db, now);
+  return rows.map((row) => ({
+    ...row,
+    offers: row.offers ?? "",
+    needs: row.needs ?? "",
+    listedAt: row.listedAt as Date,
+    record: records.get(row.id) ?? NO_RECORD,
+  }));
 }
 
 export interface CreatedListing {
@@ -260,7 +405,10 @@ export async function createListing(db: Db, input: unknown, now = new Date()): P
   return db.transaction(async (tx) => {
     const [party] = await tx
       .insert(parties)
-      .values({ ...identity, offers: listing.offers, needs: listing.needs, listedAt: now })
+      // listedAt stays null: nothing here proves this is the business it says
+      // it is, and the directory is an indexable page carrying whatever name
+      // was typed.
+      .values({ ...identity, offers: listing.offers, needs: listing.needs, listingRequestedAt: now })
       .returning();
     if (!party) throw new Error("Insert returned no row");
     const token = newAccessToken();

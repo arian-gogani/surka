@@ -5,7 +5,7 @@ import { ButtonLink, Notice, StatusPill } from "@/components/ui";
 import { getDb } from "@/db/client";
 import { formatShortDate, relativeDue } from "@/lib/dates";
 import { pilotMetrics } from "@/lib/services/metrics";
-import { listSwaps } from "@/lib/services/swaps";
+import { listSwaps, unseenProposals } from "@/lib/services/swaps";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Swaps", robots: { index: false } };
@@ -17,7 +17,7 @@ function pct(value: number | null): string {
 export default async function Dashboard({ searchParams }: { searchParams: Promise<{ error?: string; ok?: string }> }) {
   const { error, ok } = await searchParams;
   const db = await getDb();
-  const [metrics, swaps] = await Promise.all([pilotMetrics(db), listSwaps(db)]);
+  const [metrics, swaps, unseen] = await Promise.all([pilotMetrics(db), listSwaps(db), unseenProposals(db)]);
   const now = new Date();
   const open = metrics.swapsByStatus.proposed + metrics.swapsByStatus.countered + metrics.swapsByStatus.accepted;
 
@@ -37,7 +37,10 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     {
       label: "On the partner list",
       value: String(metrics.listedParties),
-      note: "Businesses a stranger can propose to",
+      note:
+        metrics.pendingListings > 0
+          ? `${metrics.pendingListings} waiting on you`
+          : "Businesses a stranger can propose to",
     },
     {
       label: "Your time per swap",
@@ -59,6 +62,39 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           New swap
         </ButtonLink>
       </div>
+
+      {/* The one thing on this page nobody else will ever do. A proposal aimed
+          at the partner list is emailed to nobody, so it reaches its recipient
+          only if they happen to reopen a bookmarked link. */}
+      {unseen.length > 0 ? (
+        <Notice tone="error">
+          {unseen.length === 1
+            ? "A proposal from the partner list hasn't been opened yet, and nothing emails it."
+            : `${unseen.length} proposals from the partner list haven't been opened, and nothing emails them.`}{" "}
+          Nudge {unseen.map((u) => u.partnerName).join(", ")} by hand:{" "}
+          {unseen.map((u, i) => (
+            <span key={u.swapId}>
+              {i > 0 ? ", " : null}
+              <Link href={`/admin/swaps/${u.swapId}`} className="font-medium underline underline-offset-4">
+                {u.title}
+              </Link>
+              {u.partnerEmail ? null : " (no address on file)"}
+            </span>
+          ))}
+        </Notice>
+      ) : null}
+
+      {metrics.pendingListings > 0 ? (
+        <Notice tone="ok">
+          {metrics.pendingListings === 1
+            ? "One business is waiting to be let onto the partner list."
+            : `${metrics.pendingListings} businesses are waiting to be let onto the partner list.`}{" "}
+          <Link href="/admin/listings" className="font-medium underline underline-offset-4">
+            Read them
+          </Link>
+          . Nothing is public until you do.
+        </Notice>
+      ) : null}
 
       {emailOff ? (
         <Notice tone="error">

@@ -21,6 +21,14 @@ export interface Prefill {
   kind: string;
   website: string;
   email: string;
+  /**
+   * Whether the link they arrived with may rewrite the business.
+   *
+   * A swap link carries the business forward but does not prove you are it, so
+   * the fields are shown as settled rather than as a form that will save.
+   * Showing them editable and discarding the edits is the worse of the two.
+   */
+  editable: boolean;
 }
 
 /**
@@ -85,12 +93,14 @@ export function StartForm({
             <p className="text-[15px] text-muted">
               Carrying over <span className="font-medium text-ink">{prefill.name}</span> from your last swap, so your
               record builds up instead of starting over.
+              {prefill.editable ? null : " To change these details you'll need your listing link."}
             </p>
           ) : null}
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Your business">
               <input
                 name="yourName"
+                readOnly={!prefill.editable && prefill.from !== null}
                 required
                 maxLength={120}
                 autoComplete="organization"
@@ -100,7 +110,12 @@ export function StartForm({
               />
             </Field>
             <Field label="What kind">
-              <select name="yourKind" className="field" defaultValue={kept("yourKind", prefill.kind || "app")}>
+              <select
+                name="yourKind"
+                disabled={!prefill.editable && prefill.from !== null}
+                className="field"
+                defaultValue={kept("yourKind", prefill.kind || "app")}
+              >
                 {KINDS.map((k) => (
                   <option key={k.value} value={k.value}>
                     {k.label}
@@ -112,6 +127,7 @@ export function StartForm({
           <Field label="Website" hint="Optional">
             <input
               name="yourWebsite"
+              readOnly={!prefill.editable && prefill.from !== null}
               type="url"
               autoComplete="url"
               defaultValue={kept("yourWebsite", prefill.website)}
@@ -122,6 +138,7 @@ export function StartForm({
           <Field label="Your email" hint="Optional. For swap reminders if email delivery is enabled.">
             <input
               name="yourEmail"
+              readOnly={!prefill.editable && prefill.from !== null}
               type="email"
               autoComplete="email"
               defaultValue={kept("yourEmail", prefill.email)}

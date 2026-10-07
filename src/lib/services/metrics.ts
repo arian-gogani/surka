@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { commitments, parties, results, swaps, type ResultMetric, type SwapStatus } from "@/db/schema";
 import { DAY_MS } from "../dates";
@@ -26,6 +26,13 @@ export interface PilotMetrics {
   resultTotals: Partial<Record<ResultMetric, number>>;
   /** Businesses on the public partner list. */
   listedParties: number;
+  /**
+   * Listings asked for and not yet decided.
+   *
+   * The only thing standing between a stranger and an indexable page carrying
+   * whatever business name they typed, so it belongs where the operator looks.
+   */
+  pendingListings: number;
   /**
    * Sides of a live swap with a pending deadline and no email on file.
    *
@@ -60,6 +67,7 @@ export async function pilotMetrics(db: Db, now = new Date()): Promise<PilotMetri
     answerRows,
     resultRows,
     listedRows,
+    pendingRows,
     unchaseableRows,
   ] = await Promise.all([
     db.select({ status: swaps.status, n: sql<number>`count(*)::int` }).from(swaps).groupBy(swaps.status),
@@ -113,6 +121,10 @@ export async function pilotMetrics(db: Db, now = new Date()): Promise<PilotMetri
       .select({ n: sql<number>`count(*)::int` })
       .from(parties)
       .where(isNotNull(parties.listedAt)),
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(parties)
+      .where(and(isNotNull(parties.listingRequestedAt), isNull(parties.listedAt))),
     // One row per side of a live swap that has a deadline left and nobody to
     // send it to. Counted per side, not per commitment, because the fix is one
     // address either way.
@@ -156,6 +168,7 @@ export async function pilotMetrics(db: Db, now = new Date()): Promise<PilotMetri
     completedSwaps: swapsByStatus.completed,
     resultTotals: Object.fromEntries(resultRows.map((r) => [r.metric, Number(r.total)])),
     listedParties: listedRows[0]?.n ?? 0,
+    pendingListings: pendingRows[0]?.n ?? 0,
     unchaseableSides: Number(rowsOf<{ n: number }>(unchaseableRows)[0]?.n ?? 0),
   };
 }
