@@ -126,7 +126,15 @@ export default async function ListingProfile({ params }: Props) {
       </main>
 
       {/* Organization rather than Person: these are businesses, and the shape
-          is what lets a search result show the name and description together. */}
+          is what lets a search result show the name and description together.
+          Deliberately no aggregateRating. It emitted ratingValue as the kept
+          count and bestRating as the resolved count, so "Kept 1 of 1" became
+          a five-star snippet and "Kept 8 of 10" read as 8 out of a default
+          scale of 5, which ranks the best business below the worst. Worse, it
+          claimed ratingCount raters who do not exist: nobody reviewed anything,
+          the operator checked a link the business supplied. A count of kept
+          promises is not a rating, and it is already in the page text and the
+          description where it belongs. */}
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
@@ -143,18 +151,5 @@ function structured(listing: Listing) {
     name: listing.name,
     ...(listing.website ? { url: listing.website } : {}),
     description: listing.offers,
-    // Only a figure that was checked against proof, so this never asserts
-    // something the product has not verified.
-    ...(listing.record.resolved > 0
-      ? {
-          aggregateRating: {
-            "@type": "AggregateRating",
-            ratingValue: listing.record.kept,
-            bestRating: listing.record.resolved,
-            worstRating: 0,
-            ratingCount: listing.record.resolved,
-          },
-        }
-      : {}),
   };
 }

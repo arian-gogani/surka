@@ -109,11 +109,38 @@ export type SwapInput = z.input<typeof swapInput>;
  * The directory opt-in. Offers and needs are required when listing, because an
  * entry that describes nothing costs every reader a click to discover that.
  */
+/**
+ * A text field that is absent, null, or a string, and always reads as a string.
+ *
+ * nullish rather than default(""): formData.get returns null for an absent
+ * field, a zod default only fires on undefined, and in zod a key whose schema
+ * merely accepts undefined is still required. Taking a listing down posts none
+ * of these fields, and failed with a type error instead of succeeding.
+ */
+const text1000 = z
+  .string()
+  .nullish()
+  .transform((v) => (v ?? "").trim())
+  .pipe(z.string().max(1000, "Keep this under 1000 characters"));
+
 export const listingInput = z
   .object({
     listed: z.coerce.boolean(),
-    offers: z.string().trim().max(1000, "Keep this under 1000 characters").default(""),
-    needs: z.string().trim().max(1000, "Keep this under 1000 characters").default(""),
+    offers: text1000,
+    needs: text1000,
+    /**
+     * Required to appear on the list, optional to merely exist.
+     *
+     * It is the only thing on a listing a reader can check, and the only thing
+     * the operator reviewing the queue has to go on: nothing else in the
+     * product can tell whether a listing is the business it names. The form
+     * used to mark it optional while its own hint said it was "the first thing
+     * anyone checks", which is an argument against the field being optional.
+     */
+    // nullish, not default(""): formData.get returns null for an absent field
+    // and a zod default only fires on undefined, so removing a listing (which
+    // posts no website at all) failed with a type error instead of succeeding.
+    website: text1000,
   })
   .refine((v) => !v.listed || v.offers.length >= 10, {
     message: "Say what you can offer a partner, in a sentence or so",
@@ -122,6 +149,10 @@ export const listingInput = z
   .refine((v) => !v.listed || v.needs.length >= 10, {
     message: "Say what you're looking for, in a sentence or so",
     path: ["needs"],
+  })
+  .refine((v) => !v.listed || url.safeParse(v.website).success, {
+    message: "Add your website. It's the only thing a reader can check.",
+    path: ["website"],
   });
 
 /** Just the address, for the reminders form on an agreed swap. */

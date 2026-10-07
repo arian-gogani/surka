@@ -378,6 +378,7 @@ describe("the partner list", () => {
     const { app, newsletter, tokens } = await agreed();
     await setListed(db, await claimParty(db, tokens.b), {
       listed: "yes",
+      website: "https://pmweekly.example",
       offers: "A dedicated section to 9,000 practice managers",
       needs: "A tool my readers would actually use",
     });
@@ -404,6 +405,7 @@ describe("the partner list", () => {
     });
     await setListed(db, await claimParty(db, tokens.b), {
       listed: "yes",
+      website: "https://pmweekly.example",
       offers: "A dedicated section in the next issue",
       needs: "Something my readers would use daily",
     });
@@ -428,7 +430,8 @@ describe("the partner list", () => {
 
   it("won't list a business that says nothing useful", async () => {
     const { tokens } = await agreed();
-    await expectSurka(setListed(db, tokens.b, { listed: "yes", offers: "stuff", needs: "" }), "invalid");
+    await expectSurka(setListed(db, tokens.b, { listed: "yes",
+      website: "https://pmweekly.example", offers: "stuff", needs: "" }), "invalid");
     expect(await listListings(db, NOW)).toEqual([]);
   });
 
@@ -439,6 +442,7 @@ describe("the partner list", () => {
     const own = await claimParty(db, tokens.b);
     await setListed(db, own, {
       listed: "yes",
+      website: "https://pmweekly.example",
       offers: "A dedicated section in the next issue",
       needs: "Something my readers would use daily",
     });
@@ -457,12 +461,14 @@ describe("the partner list", () => {
     const own = await claimParty(db, tokens.b);
     // NOW explicitly: setListed defaults to the real clock, which is later
     // than the fixture's NOW and would look like an edit made after approval.
-    await setListed(db, own, { listed: "yes", offers: "A dedicated section", needs: "A tool for my readers" }, NOW);
+    await setListed(db, own, { listed: "yes",
+      website: "https://pmweekly.example", offers: "A dedicated section", needs: "A tool for my readers" }, NOW);
     await approveListing(db, newsletter.id, NOW);
     expect(await pendingListings(db, NOW)).toEqual([]);
 
     const later = new Date(NOW.getTime() + 60_000);
-    await setListed(db, own, { listed: "yes", offers: "Buy followers at spam.example", needs: "Anyone at all" }, later);
+    await setListed(db, own, { listed: "yes",
+      website: "https://pmweekly.example", offers: "Buy followers at spam.example", needs: "Anyone at all" }, later);
     expect((await pendingListings(db, later)).map((l) => l.id)).toEqual([newsletter.id]);
     // Still public, because taking a live listing down over an edit punishes
     // the honest case. It is back in front of a person, which is the point.
@@ -510,6 +516,7 @@ describe("the partner list", () => {
     const { newsletter, tokens } = await agreed();
     await setListed(db, await claimParty(db, tokens.b), {
       listed: "yes",
+      website: "https://pmweekly.example",
       offers: "Buy cheap followers at spam.example",
       needs: "Anyone at all, no questions asked",
     });
@@ -522,7 +529,8 @@ describe("the partner list", () => {
 
   it("refuses an unknown link rather than listing a guess", async () => {
     await expectSurka(
-      setListed(db, "not-a-real-token", { listed: "yes", offers: "x".repeat(20), needs: "y".repeat(20) }),
+      setListed(db, "not-a-real-token", { listed: "yes",
+      website: "https://pmweekly.example", offers: "x".repeat(20), needs: "y".repeat(20) }),
       "not_found",
     );
   });
@@ -531,6 +539,7 @@ describe("the partner list", () => {
     const { app, newsletter, tokens } = await agreed();
     await setListed(db, await claimParty(db, tokens.b), {
       listed: "yes",
+      website: "https://pmweekly.example",
       offers: "A dedicated section in the next issue",
       needs: "Something my readers would use daily",
     });
@@ -567,11 +576,16 @@ describe("listing without a swap", () => {
 
     const listings = await listListings(db, NOW);
     expect(listings.map((l) => l.id)).toEqual([party.id]);
-    expect(listings[0]?.record).toEqual({ kept: 0, resolved: 0, score: null });
+    expect(listings[0]?.record).toEqual({ kept: 0, resolved: 0 });
     expect(describeRecord(listings[0]!.record)).toBe("No swaps through Surka yet");
   });
 
   it("won't list a business that says nothing useful", async () => {
+    // A website is required to be listed: it is the only thing on a listing a
+    // reader can check, and the only thing the operator reviewing the queue
+    // has to go on.
+    await expectSurka(createListing(db, { ...good, website: "" }, NOW), "invalid");
+    await expectSurka(createListing(db, { ...good, website: "not a url" }, NOW), "invalid");
     await expectSurka(createListing(db, { ...good, offers: "stuff" }, NOW), "invalid");
     await expectSurka(createListing(db, { ...good, needs: "" }, NOW), "invalid");
     await expectSurka(createListing(db, { ...good, name: "" }, NOW), "invalid");
@@ -590,7 +604,8 @@ describe("listing without a swap", () => {
   it("lets the holder edit and remove the listing with that link", async () => {
     const { party, token } = await createListing(db, good, NOW);
     await approveListing(db, party.id, NOW);
-    await setListed(db, token, { listed: "yes", offers: "A dedicated slot, every week", needs: good.needs });
+    await setListed(db, token, { listed: "yes",
+      website: "https://pmweekly.example", offers: "A dedicated slot, every week", needs: good.needs });
     // Editing a listing that is already public keeps it public: only the first
     // appearance waits on a person, because that is where the risk is.
     expect((await listListings(db, NOW))[0]?.offers).toBe("A dedicated slot, every week");
@@ -652,6 +667,7 @@ describe("what the operator can see and undo", () => {
       {
         name: "Spam Factory",
         kind: "other",
+        website: "https://spam.example",
         offers: "Buy cheap followers at spam.example",
         needs: "Anyone at all, no questions asked",
       },
@@ -956,6 +972,56 @@ describe("a track record survives into the next swap", () => {
     });
   });
 
+  it("keeps a self-dealt swap out of the public record", async () => {
+    // The public form creates both businesses and hands the submitter both
+    // links, so one person could propose to a business they invented, accept
+    // as that business, deliver against their own page, and have only the
+    // operator's "does this proof look right" click between them and a
+    // perfect public record. Three requests per point, repeatable.
+    const mine = await createParty(db, { name: "Mine", kind: "app" });
+    const invented = await createParty(db, { name: "Also Mine", kind: "newsletter" });
+    const self = await createSwap(
+      db,
+      {
+        title: "A swap with myself",
+        partyAId: mine.id,
+        partyBId: invented.id,
+        commitments: [
+          { side: "a", description: "Something", dueDate: "2026-10-20" },
+          { side: "b", description: "Something else", dueDate: "2026-10-20" },
+        ],
+      },
+      // What the public form produces when the partner is not from the list.
+      { status: "proposed", openedBy: "proposer", now: NOW },
+    );
+    await respond(db, self.tokens.b, { decision: "accept" }, NOW);
+    const view = await getSwapForToken(db, self.tokens.a, NOW);
+    for (const c of view.commitments) await verifyCommitment(db, c.id, "kept", NOW);
+
+    // Both sides really are kept, and the swap really did complete. It just
+    // cannot evidence anything, because one person held both links.
+    expect((await getSwapForToken(db, self.tokens.a, NOW)).swap.status).toBe("completed");
+    expect(await partyRecord(db, mine.id, NOW)).toEqual({ kept: 0, resolved: 0 });
+    expect((await partyRecords(db, NOW)).get(mine.id)).toBeUndefined();
+
+    // An operator-run swap between the same two does count, because a person
+    // who knows they are different businesses entered and checked it.
+    const real = await createSwap(db, {
+      title: "A swap the operator ran",
+      partyAId: mine.id,
+      partyBId: invented.id,
+      commitments: [
+        { side: "a", description: "Something real", dueDate: "2026-10-22" },
+        { side: "b", description: "Something else real", dueDate: "2026-10-22" },
+      ],
+    });
+    await markProposed(db, real.swap.id, NOW);
+    await respond(db, real.tokens.b, { decision: "accept" }, NOW);
+    const realView = await getSwapForToken(db, real.tokens.a, NOW);
+    for (const c of realView.commitments) await verifyCommitment(db, c.id, "kept", NOW);
+    expect(await partyRecord(db, mine.id, NOW)).toEqual({ kept: 1, resolved: 1 });
+  });
+
   it("refuses to mint a second listing link for a business that has one", async () => {
     // Otherwise the takeover comes straight back: the ordinary flow hands the
     // proposer the partner's swap link, so a second claim from it would hand
@@ -970,7 +1036,8 @@ describe("a track record survives into the next swap", () => {
   it("will not let a swap link rewrite the business or its listing", async () => {
     const { newsletter, tokens } = await seedSwap();
     await expectSurka(
-      setListed(db, tokens.b, { listed: "yes", offers: "x".repeat(20), needs: "y".repeat(20) }),
+      setListed(db, tokens.b, { listed: "yes",
+      website: "https://pmweekly.example", offers: "x".repeat(20), needs: "y".repeat(20) }),
       "not_allowed",
     );
     expect((await getParty(db, newsletter.id))?.listingRequestedAt).toBeNull();

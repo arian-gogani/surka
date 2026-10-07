@@ -59,10 +59,11 @@ export function ListForm() {
               </select>
             </Field>
           </div>
-          <Field label="Website" hint="Shown on your listing. Optional, but it's the first thing anyone checks.">
+          <Field label="Website" hint="The only thing on your listing a reader can check, so it's required.">
             <input
               name="website"
               type="url"
+              required
               autoComplete="url"
               defaultValue={kept("website")}
               placeholder="https://example.com"

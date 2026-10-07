@@ -2,7 +2,7 @@ import type { z } from "zod";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { addDays, daysUntil, isValidDateOnly } from "@/lib/dates";
 import { appUrl } from "@/lib/env";
-import { computeRecord, describeRecord, HALF_LIFE_DAYS } from "@/lib/reputation";
+import { computeRecord, describeRecord } from "@/lib/reputation";
 import { possessive } from "@/lib/present";
 import { commitmentInput, firstIssue, partyInput, resultInput } from "@/lib/validation";
 import { dueReminderKind, reminderSubject } from "@/lib/reminders";
@@ -110,7 +110,7 @@ describe("dates", () => {
 describe("track record", () => {
   it("starts empty", () => {
     const record = computeRecord([], NOW);
-    expect(record).toEqual({ kept: 0, resolved: 0, score: null });
+    expect(record).toEqual({ kept: 0, resolved: 0 });
     expect(describeRecord(record)).toBe("No swaps through Surka yet");
   });
 
@@ -126,19 +126,21 @@ describe("track record", () => {
     expect(describeRecord(record)).toBe("Kept 1 of 1 commitment");
   });
 
-  it("lets an old miss fade behind recent kept commitments", () => {
-    const oldMiss = new Date(NOW.getTime() - 2 * HALF_LIFE_DAYS * 86_400_000);
+  it("counts an old miss exactly like a recent one", () => {
+    // There used to be a 180 day half life here, computed and displayed
+    // nowhere, so this test pinned the weighting of a number no reader could
+    // see while both pages showed the raw counts. The displayed number is the
+    // one worth testing.
+    const old = new Date(NOW.getTime() - 3 * 365 * 86_400_000);
     const record = computeRecord(
       [
-        { status: "missed", verifiedAt: oldMiss },
+        { status: "missed", verifiedAt: old },
         { status: "kept", verifiedAt: NOW },
       ],
       NOW,
     );
-    expect(record.kept).toBe(1);
-    expect(record.resolved).toBe(2);
-    // The miss weighs a quarter as much: 1 / (1 + 0.25) = 0.8.
-    expect(record.score).toBeCloseTo(0.8, 5);
+    expect(record).toEqual({ kept: 1, resolved: 2 });
+    expect(describeRecord(record)).toBe("Kept 1 of 2 commitments");
   });
 });
 

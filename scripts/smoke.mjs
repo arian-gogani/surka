@@ -273,12 +273,31 @@ async function run() {
   );
 
   const ownToken = ownPath.slice("/p/".length);
-  const thin = await submit(ownPath, 'name="offers"', { token: ownToken, listed: "yes", offers: "stuff", needs: "" });
+  const noSite = await submit(ownPath, 'name="offers"', {
+    token: ownToken,
+    listed: "yes",
+    website: "",
+    offers: "A dedicated section to 9,000 practice managers",
+    needs: "A scheduling tool my readers would use daily",
+  });
+  check(
+    query(noSite.location, "error")?.includes("website") ?? false,
+    "a listing needs the one thing a reader can check",
+  );
+
+  const thin = await submit(ownPath, 'name="offers"', {
+    token: ownToken,
+    listed: "yes",
+    website: "https://pmweekly.example",
+    offers: "stuff",
+    needs: "",
+  });
   check(query(thin.location, "error") !== null, "a listing has to say something useful");
 
   const listed = await submit(ownPath, 'name="offers"', {
     token: ownToken,
     listed: "yes",
+    website: "https://pmweekly.example",
     offers: "A dedicated section to 9,000 practice managers",
     needs: "A scheduling tool my readers would use daily",
   });
@@ -422,6 +441,7 @@ async function run() {
   const relisted = await submit(managePath, 'name="needs"', {
     token: managePath.slice("/p/".length),
     listed: "yes",
+    website: "https://receiptbutler.example",
     offers: "A slot in our onboarding email to 2,000 new users a month",
     needs: "A billing or scheduling tool my users would pay for",
   });

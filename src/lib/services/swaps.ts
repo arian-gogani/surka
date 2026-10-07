@@ -278,6 +278,7 @@ export async function setListed(
         ? {
             offers: values.offers,
             needs: values.needs,
+            website: values.website,
             listingRequestedAt: now,
             // Editing a listing that is already public keeps it public. Only
             // the first appearance waits on a person, because that is where
@@ -408,6 +409,9 @@ export interface CreatedListing {
  */
 export async function createListing(db: Db, input: unknown, now = new Date()): Promise<CreatedListing> {
   const identity = parse(partyIdentityInput, input);
+  // listed: true so the website requirement applies here too. The public form
+  // is the one place a stranger's listing enters the queue, so it is the one
+  // place the reviewable fields have to be present.
   const listing = parse(listingInput, { ...(input as object), listed: true });
 
   return db.transaction(async (tx) => {
@@ -550,15 +554,43 @@ export async function getParty(db: Db, partyId: string): Promise<Party | null> {
 }
 
 /** A party's history of kept and missed commitments across every swap. */
+/**
+ * Swaps whose two sides were not both controlled by one person.
+ *
+ * The record is the only claim on a listing that a business cannot write about
+ * itself, and that was not true. The public form creates both businesses and
+ * hands the submitter both links, so one person could propose to a business
+ * they invented, accept as that business, deliver against their own page, and
+ * then only the operator's "does this proof look right" click stood between
+ * them and a perfect public record. Three requests per point, repeatable.
+ *
+ * openedBy is exactly the right discriminator, because it records who held
+ * what. "operator" means the operator entered both businesses and is also the
+ * one checking, so there is a human who knows they are different. "directory"
+ * means the proposal was aimed at an existing listing and that side's link was
+ * withheld from the proposer, so they never controlled it. "proposer" means
+ * the submitter walked away holding both links, and that is the one case a
+ * self-dealer uses.
+ *
+ * A genuine swap between two founders who already know each other therefore
+ * does not build a public record until one of them is on the partner list. The
+ * swap still works, and both sides still see everything; the number simply
+ * stops meaning something it could not back up.
+ */
+const INDEPENDENT: readonly OpenedBy[] = ["operator", "directory"];
+
 export async function partyRecord(db: Db, partyId: string, now = new Date()): Promise<TrackRecord> {
   const rows = await db
     .select({ status: commitments.status, verifiedAt: commitments.verifiedAt })
     .from(commitments)
     .innerJoin(swaps, eq(swaps.id, commitments.swapId))
     .where(
-      or(
-        and(eq(commitments.side, "a"), eq(swaps.partyAId, partyId)),
-        and(eq(commitments.side, "b"), eq(swaps.partyBId, partyId)),
+      and(
+        inArray(swaps.openedBy, INDEPENDENT),
+        or(
+          and(eq(commitments.side, "a"), eq(swaps.partyAId, partyId)),
+          and(eq(commitments.side, "b"), eq(swaps.partyBId, partyId)),
+        ),
       ),
     );
   return computeRecord(rows, now);
@@ -581,7 +613,10 @@ export async function partyRecords(db: Db, now = new Date()): Promise<Map<string
       partyBId: swaps.partyBId,
     })
     .from(commitments)
-    .innerJoin(swaps, eq(swaps.id, commitments.swapId));
+    .innerJoin(swaps, eq(swaps.id, commitments.swapId))
+    // Same rule as partyRecord, for the same reason: a swap whose two links
+    // were both held by one person cannot evidence anything about either side.
+    .where(inArray(swaps.openedBy, INDEPENDENT));
 
   const byParty = new Map<string, CheckedCommitment[]>();
   for (const row of rows) {

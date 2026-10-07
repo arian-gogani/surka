@@ -87,6 +87,19 @@ export default async function ListingPage({ params, searchParams }: Props) {
 
         <form action={updateListingAction} className="space-y-4 rounded-xl border border-line bg-white p-5 sm:p-6">
           <h2 className="text-xl font-semibold">Your listing</h2>
+          {/* Required to appear, because it is the only thing on a listing a
+              reader can check and the only thing the review has to go on. */}
+          <Field label="Website" hint="Shown on your listing. Required to appear on the list.">
+            <input
+              name="website"
+              type="url"
+              required
+              autoComplete="url"
+              defaultValue={party.website ?? ""}
+              placeholder="https://example.com"
+              className="field"
+            />
+          </Field>
           <Field label="What you can offer a partner" hint="Audience, placements, an integration, a bundle.">
             <textarea name="offers" rows={3} maxLength={1000} defaultValue={party.offers ?? ""} className="field" />
           </Field>

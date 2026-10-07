@@ -19,6 +19,7 @@ export async function updateListingAction(formData: FormData) {
   try {
     await setListed(await getDb(), token, {
       listed,
+      website: formData.get("website"),
       offers: formData.get("offers"),
       needs: formData.get("needs"),
     });

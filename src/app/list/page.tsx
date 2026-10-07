@@ -35,6 +35,28 @@ export default function ListPage() {
           listing cannot write about itself.
         </p>
 
+        {/*
+          The costs, said plainly. The page used to name exactly one concern,
+          what is public, and leave the rest for a reader to work out: that
+          strangers can now approach you, that describing your audience is
+          describing your asking price, and that a person reads this before
+          anyone sees it. A sceptic notices the missing half of a trade.
+        */}
+        <ul className="mt-6 max-w-prose space-y-2 text-[15px] leading-relaxed text-muted">
+          <li>
+            Strangers can propose swaps to you. You can decline any of them, and declining costs you nothing.
+          </li>
+          <li>
+            What you write under &quot;can offer&quot; is visible to everyone you later negotiate with, so
+            treat it as a public number rather than an opening position.
+          </li>
+          <li>
+            We read every new listing before it goes public, usually within a day, because nothing automatic
+            can tell whether a listing is the business it names.
+          </li>
+          <li>You can edit or remove it at any time with the private link we give you.</li>
+        </ul>
+
         <ListForm />
       </main>
     </div>
