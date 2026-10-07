@@ -349,11 +349,38 @@ export async function listListings(db: Db, now = new Date()): Promise<Listing[]>
   }));
 }
 
-/** One listing, for prefilling a proposal aimed at a specific business. */
+/**
+ * One listing, for prefilling a proposal aimed at a specific business.
+ *
+ * Its own query. This used to call listListings and pick one row out of the
+ * result, which meant every unauthenticated GET of /start?with=<uuid> scanned
+ * the whole parties table and joined every commitment to every swap, three
+ * times per request, on a page with no rate limit. Only a listed business
+ * resolves, so a public id is not a way to reach a private one.
+ */
 export async function getListing(db: Db, partyId: string, now = new Date()): Promise<Listing | null> {
   if (!isUuid(partyId)) return null;
-  const all = await listListings(db, now);
-  return all.find((l) => l.id === partyId) ?? null;
+  const [row] = await db
+    .select({
+      id: parties.id,
+      name: parties.name,
+      kind: parties.kind,
+      website: parties.website,
+      offers: parties.offers,
+      needs: parties.needs,
+      listedAt: parties.listedAt,
+    })
+    .from(parties)
+    .where(and(eq(parties.id, partyId), isNotNull(parties.listedAt)))
+    .limit(1);
+  if (!row?.listedAt) return null;
+  return {
+    ...row,
+    offers: row.offers ?? "",
+    needs: row.needs ?? "",
+    listedAt: row.listedAt,
+    record: await partyRecord(db, row.id, now),
+  };
 }
 
 export async function listParties(db: Db): Promise<Party[]> {
@@ -669,6 +696,13 @@ export async function setSideEmail(db: Db, token: string, input: unknown): Promi
   const { email } = parse(sideEmailInput, input);
   const access = await requireAccess(db, token);
   const swap = await requireSwap(db, access.swapId);
+  // Only where reminders can actually fire. This had no gate at all, so a
+  // token for a swap that was declined, cancelled, or never even sent kept
+  // rewriting that business's address forever, and it is the address every
+  // reminder for every other swap of theirs goes to.
+  if (swap.status !== "accepted" && swap.status !== "completed") {
+    throw new SurkaError("Reminders start once both sides have agreed to the swap.", "conflict");
+  }
   const partyId = access.side === "a" ? swap.partyAId : swap.partyBId;
   await db.update(parties).set({ email }).where(eq(parties.id, partyId));
   await logEvent(db, swap.id, "email_set", { side: access.side });
