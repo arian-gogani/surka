@@ -198,7 +198,7 @@ export default async function SwapLinkPage({ params, searchParams }: Props) {
                   href={`mailto:${contact}?subject=${encodeURIComponent(`Swap: ${view.swap.title}`)}`}
                   className="-mx-1 inline-flex min-h-11 items-center px-1 font-medium text-ink underline underline-offset-4"
                 >
-                  Email {contact}
+                  Email us
                 </a>{" "}
                 and we&apos;ll sort it out.{" "}
               </>
@@ -548,7 +548,7 @@ function MissedNote({ description }: { description: string }) {
             href={`mailto:${contact}?subject=${encodeURIComponent(`Missed: ${description}`)}`}
             className="-mx-1 inline-flex min-h-11 items-center px-1 font-medium text-ink underline underline-offset-4"
           >
-            email {contact}
+            email us
           </a>{" "}
           and we&apos;ll reopen the check.
         </>

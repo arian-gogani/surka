@@ -41,14 +41,17 @@ export default function Home() {
           <Logo size={30} />
         </a>
         {mailto ? (
-          // The address is in the link text too: on a phone this throws the
-          // reader out of the browser into a mail client, and the old label
-          // gave no warning that was about to happen.
+          // "Talk to us" gave no warning that activating it leaves the browser
+          // for a mail client, which on a phone is a jarring context change.
+          // The warning goes in the accessible name rather than the visible
+          // text: putting the address on a public page just feeds scrapers,
+          // and it is already in the href for anyone who wants it.
           <a
             href={mailto}
+            aria-label="Talk to us by email (opens your mail app)"
             className="-mx-2 inline-flex min-h-11 items-center px-2 text-[15px] font-medium text-ink underline-offset-4 hover:underline"
           >
-            Email {contact}
+            Talk to us
           </a>
         ) : null}
       </header>

@@ -140,7 +140,7 @@ export default async function ListingPage({ params, searchParams }: Props) {
                 href={`mailto:${contact}?subject=${encodeURIComponent(`Listing: ${party.name}`)}`}
                 className="-mx-1 inline-flex min-h-11 items-center px-1 font-medium text-ink underline underline-offset-4"
               >
-                Email {contact}
+                Email us
               </a>
               .
             </p>
