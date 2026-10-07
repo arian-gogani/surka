@@ -31,7 +31,11 @@ export function SubmitButton({ children, pendingLabel }: { children: string; pen
         }}
         className={pending ? "cursor-not-allowed opacity-50" : ""}
       >
-        {pending ? pendingLabel : children}
+        {/* The label stays put. Changing it renames the element that currently
+            holds focus, which several screen readers re-announce, so the
+            pending state was spoken twice: once as the new name and once by
+            the region below. The region is the one that should say it. */}
+        {children}
       </Button>
       <span role="status" className="sr-only">
         {pending ? pendingLabel : ""}

@@ -33,6 +33,7 @@ export default async function ListingPage({ params, searchParams }: Props) {
 
   const { party, record, swaps } = view;
   const listed = party.listedAt !== null;
+  const contact = contactEmail();
 
   return (
     <div className="min-h-screen">
@@ -131,18 +132,20 @@ export default async function ListingPage({ params, searchParams }: Props) {
           <ButtonLink href="/partners">Find a partner</ButtonLink>
         </div>
 
-        <footer className="border-t border-line pt-6 text-[14px] text-muted">
-          <p>
-            Something wrong?{" "}
-            <a
-              href={`mailto:${contactEmail()}?subject=${encodeURIComponent(`Listing: ${party.name}`)}`}
-              className="font-medium text-ink underline underline-offset-4"
-            >
-              Email us
-            </a>
-            .
-          </p>
-        </footer>
+        {contact ? (
+          <footer className="border-t border-line pt-6 text-[14px] text-muted">
+            <p>
+              Something wrong?{" "}
+              <a
+                href={`mailto:${contact}?subject=${encodeURIComponent(`Listing: ${party.name}`)}`}
+                className="-mx-1 inline-flex min-h-11 items-center px-1 font-medium text-ink underline underline-offset-4"
+              >
+                Email {contact}
+              </a>
+              .
+            </p>
+          </footer>
+        ) : null}
       </main>
     </div>
   );

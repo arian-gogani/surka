@@ -10,8 +10,17 @@ export function appUrl(): string {
   return "http://localhost:3000";
 }
 
-export function contactEmail(): string {
-  return process.env.CONTACT_EMAIL ?? "hello@example.com";
+/**
+ * The address to reach a human, or null when none is configured.
+ *
+ * No placeholder. The old fallback was hello@example.com, so any deploy that
+ * forgot the variable shipped a dead "Talk to us" that looked live, and the
+ * pages that offer to sort out a problem were offering nothing. Callers render
+ * the link only when there is somewhere for it to go.
+ */
+export function contactEmail(): string | null {
+  const value = process.env.CONTACT_EMAIL?.trim();
+  return value ? value : null;
 }
 
 export function requireEnv(name: string): string {

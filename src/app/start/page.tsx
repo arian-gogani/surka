@@ -11,14 +11,19 @@ import { StartForm } from "./start-form";
  * it is the public way in. Referrers are suppressed either way, so a token can
  * never ride along to an external site.
  */
+type Query = { from?: string; with?: string };
+
 export async function generateMetadata({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string }>;
+  searchParams: Promise<Query>;
 }): Promise<Metadata> {
-  const { from } = await searchParams;
+  const { from, with: withId } = await searchParams;
+  // The heading becomes "Propose a swap to X", so the title has to agree:
+  // someone with several tabs open picks between them by title alone.
+  const target = withId ? await getListing(await getDb(), withId) : null;
   return {
-    title: "Start a swap",
+    title: target ? `Propose a swap to ${target.name}` : "Start a swap",
     description:
       "Write down what each side gives and by when. You get two private links: one for you, one to send your partner.",
     referrer: "no-referrer",
@@ -26,8 +31,6 @@ export async function generateMetadata({
     ...(from ? { robots: { index: false, follow: false } } : {}),
   };
 }
-
-type Query = { from?: string; with?: string };
 
 export default async function StartPage({ searchParams }: { searchParams: Promise<Query> }) {
   const { from, with: withId } = await searchParams;

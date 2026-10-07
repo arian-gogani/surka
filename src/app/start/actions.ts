@@ -42,7 +42,13 @@ export async function startSwapAction(_previous: StartState, formData: FormData)
   ];
   for (const term of terms) {
     const parsed = commitmentInput.safeParse(term);
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    // Name the side. "Describe what will be delivered" and "Pick a due date"
+    // apply equally to both halves of this form, so the bare message left
+    // someone to re-read fourteen fields to find which one it meant.
+    if (!parsed.success) {
+      const side = term.side === "a" ? "Your side" : "Their side";
+      return fail(`${side}: ${firstIssue(parsed.error)}`);
+    }
   }
   // The title is checked here too. The browser enforces minLength on the raw
   // value while the server trims, so a title of three spaces passed the form

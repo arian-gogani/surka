@@ -30,14 +30,27 @@ const STEPS = [
 export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 export default function Home() {
-  const mailto = `mailto:${contactEmail()}?subject=${encodeURIComponent("A swap I want to run")}`;
+  const contact = contactEmail();
+  const mailto = contact
+    ? `mailto:${contact}?subject=${encodeURIComponent("A swap I want to run")}`
+    : null;
   return (
     <div className="min-h-screen">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
-        <Logo size={30} />
-        <a href={mailto} className="text-[15px] font-medium text-ink underline-offset-4 hover:underline">
-          Talk to us
+        <a href="/" aria-label="Surka home">
+          <Logo size={30} />
         </a>
+        {mailto ? (
+          // The address is in the link text too: on a phone this throws the
+          // reader out of the browser into a mail client, and the old label
+          // gave no warning that was about to happen.
+          <a
+            href={mailto}
+            className="-mx-2 inline-flex min-h-11 items-center px-2 text-[15px] font-medium text-ink underline-offset-4 hover:underline"
+          >
+            Email {contact}
+          </a>
+        ) : null}
       </header>
 
       <main>

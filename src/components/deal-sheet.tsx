@@ -45,7 +45,10 @@ export function DealSheet({
 
 function SideColumn({ side, data, isViewer }: { side: Side; data: DealSheetSide; isViewer: boolean }) {
   return (
-    <section className="flex flex-col px-5 py-5 sm:px-6" aria-label={`What ${data.name} gives`}>
+    // Deliberately unnamed. An aria-label here promotes each column to a
+    // landmark, so on the marketing page two of the five landmarks a screen
+    // reader lists belonged to an example business. The heading names it.
+    <section className="flex flex-col px-5 py-5 sm:px-6">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <SideTag name={data.name} side={side} />
         {isViewer ? <span className="text-[13px] text-muted">You</span> : null}

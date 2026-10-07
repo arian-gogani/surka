@@ -27,7 +27,9 @@ export function NewSwapForm({
     <>
       {state.error ? (
         <div className="mt-4">
-          <Notice tone="error">{state.error}</Notice>
+          <Notice tone="error" arriving={false}>
+            {state.error}
+          </Notice>
         </div>
       ) : null}
 

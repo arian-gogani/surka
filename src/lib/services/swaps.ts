@@ -665,8 +665,10 @@ export async function markDelivered(
     throw new SurkaError("You can only mark your own side's commitments as delivered.", "not_allowed");
   }
   if (!canMoveCommitment(commitment.status, "delivered")) {
+    const contact = contactEmail();
     throw new SurkaError(
-      `This one has already been checked as ${commitment.status}. Email ${contactEmail()} if that was wrong.`,
+      `This one has already been checked as ${commitment.status}.` +
+        (contact ? ` Email ${contact} if that was wrong.` : " Ask whoever set up this swap to reopen the check."),
       "conflict",
     );
   }

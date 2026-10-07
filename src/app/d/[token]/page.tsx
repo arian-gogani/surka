@@ -61,6 +61,7 @@ export default async function SwapLinkPage({ params, searchParams }: Props) {
       ? (view.access.find((a) => a.side === "b")?.token ?? null)
       : null;
   const unanswered = view.swap.status === "draft" || view.swap.status === "proposed";
+  const contact = contactEmail();
   const sheet = (
     <DealSheet
       title={view.swap.title}
@@ -190,14 +191,19 @@ export default async function SwapLinkPage({ params, searchParams }: Props) {
             was no address anywhere on it, and the logo was not a link. */}
         <footer className="border-t border-line pt-6 text-[14px] text-muted">
           <p>
-            Something wrong with this swap?{" "}
-            <a
-              href={`mailto:${contactEmail()}?subject=${encodeURIComponent(`Swap: ${view.swap.title}`)}`}
-              className="font-medium text-ink underline underline-offset-4"
-            >
-              Email us
-            </a>{" "}
-            and we&apos;ll sort it out. Keep this link: it is the only way back to this page.
+            {contact ? (
+              <>
+                Something wrong with this swap?{" "}
+                <a
+                  href={`mailto:${contact}?subject=${encodeURIComponent(`Swap: ${view.swap.title}`)}`}
+                  className="-mx-1 inline-flex min-h-11 items-center px-1 font-medium text-ink underline underline-offset-4"
+                >
+                  Email {contact}
+                </a>{" "}
+                and we&apos;ll sort it out.{" "}
+              </>
+            ) : null}
+            Keep this link: it is the only way back to this page.
           </p>
         </footer>
       </main>
@@ -429,16 +435,7 @@ function SwapRoom({
                 // A miss is a human judgement from a proof link, and it goes
                 // into this side's record. Without this there was no form, no
                 // appeal, and no address anywhere on the page.
-                <p className="mt-3 text-[14px] text-muted">
-                  Checked as missed. If you did deliver this, or the link we read was the wrong one,{" "}
-                  <a
-                    href={`mailto:${contactEmail()}?subject=${encodeURIComponent(`Missed: ${c.description}`)}`}
-                    className="font-medium text-ink underline underline-offset-4"
-                  >
-                    email us
-                  </a>{" "}
-                  and we&apos;ll reopen the check.
-                </p>
+                <MissedNote description={c.description} />
               ) : null}
             </CommitmentRow>
           ))}
@@ -535,6 +532,30 @@ function SwapRoom({
         </form>
       </section>
     </div>
+  );
+}
+
+/** A miss is a judgement call that lands in this side's record, so say how to appeal it. */
+function MissedNote({ description }: { description: string }) {
+  const contact = contactEmail();
+  return (
+    <p className="mt-3 text-[14px] text-muted">
+      Checked as missed.{" "}
+      {contact ? (
+        <>
+          If you did deliver this, or the link we read was the wrong one,{" "}
+          <a
+            href={`mailto:${contact}?subject=${encodeURIComponent(`Missed: ${description}`)}`}
+            className="-mx-1 inline-flex min-h-11 items-center px-1 font-medium text-ink underline underline-offset-4"
+          >
+            email {contact}
+          </a>{" "}
+          and we&apos;ll reopen the check.
+        </>
+      ) : (
+        "If that was wrong, ask whoever set up this swap to reopen the check."
+      )}
+    </p>
   );
 }
 

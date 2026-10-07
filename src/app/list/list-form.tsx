@@ -28,7 +28,9 @@ export function ListForm() {
     <>
       {state.error ? (
         <div className="mt-6">
-          <Notice tone="error">{state.error}</Notice>
+          <Notice tone="error" arriving={false}>
+            {state.error}
+          </Notice>
         </div>
       ) : null}
 

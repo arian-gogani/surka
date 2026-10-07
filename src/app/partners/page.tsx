@@ -52,7 +52,7 @@ export default async function PartnersPage() {
 
         {listings.length === 0 ? (
           <div className="mt-10 rounded-xl border border-dashed border-line bg-white px-6 py-12">
-            <h2 className="text-xl font-semibold">Nobody is listed yet</h2>
+            <h2 className="break-words text-xl font-semibold">Nobody is listed yet</h2>
             <p className="mt-2 max-w-prose text-muted">
               Be the first. Say what you can offer and what you&apos;re after, and founders can propose swaps to
               you without an introduction.
@@ -69,7 +69,7 @@ export default async function PartnersPage() {
             {listings.map((l) => (
               <li key={l.id} className="rounded-xl border border-line bg-white p-5 sm:p-6">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                  <h2 className="text-xl font-semibold">
+                  <h2 className="break-words text-xl font-semibold">
                     {l.website ? (
                       <a
                         href={l.website}
@@ -87,17 +87,20 @@ export default async function PartnersPage() {
                       directory of names is a directory; a directory of names
                       with what each one delivered is a reason to trust one. */}
                   <p className="text-[13px] text-muted">
-                    {KIND_LABEL[l.kind]} &middot; {describeRecord(l.record)}
+                    {KIND_LABEL[l.kind]}
+                    <span aria-hidden="true"> &middot; </span>
+                    <span className="sr-only">, </span>
+                    {describeRecord(l.record)}
                   </p>
                 </div>
                 <dl className="mt-4 grid gap-4 text-[15px] leading-relaxed sm:grid-cols-2">
                   <div>
                     <dt className="text-[13px] font-medium text-muted">Can offer</dt>
-                    <dd className="mt-0.5">{l.offers}</dd>
+                    <dd className="mt-0.5 break-words">{l.offers}</dd>
                   </div>
                   <div>
                     <dt className="text-[13px] font-medium text-muted">Looking for</dt>
-                    <dd className="mt-0.5">{l.needs}</dd>
+                    <dd className="mt-0.5 break-words">{l.needs}</dd>
                   </div>
                 </dl>
                 <ButtonLink href={`/start?with=${l.id}`} className="mt-5">
