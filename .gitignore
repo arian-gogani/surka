@@ -9,3 +9,6 @@ next-env.d.ts
 .DS_Store
 coverage
 .vercel
+
+# Agent worktrees are clones of this repo, not content.
+.claude/worktrees/
