@@ -323,6 +323,24 @@ async function run() {
   // Delisting is not deleting: the link has to still work or they can never return.
   check((await get(managePath)).status === 200, "the private link still works after removal");
 
+  console.log("Operator moderation of the public list");
+  const relisted = await submit(managePath, 'name="needs"', {
+    token: managePath.slice("/p/".length),
+    listed: "yes",
+    offers: "A slot in our onboarding email to 2,000 new users a month",
+    needs: "A billing or scheduling tool my users would pay for",
+  });
+  check(query(relisted.location, "ok")?.includes("live") ?? false, "the holder can put the listing back");
+
+  const moderation = await get("/admin/listings");
+  check(moderation.html.includes("Receipt Butler"), "the operator sees every listing");
+  const partyId = moderation.html.match(/name="partyId" value="([0-9a-f-]{36})"/)?.[1];
+  const tookDown = await submit("/admin/listings", 'name="partyId"', { partyId });
+  check(query(tookDown.location, "ok")?.includes("Taken off") ?? false, "the operator can take a listing down");
+  check(!(await get("/partners")).html.includes("Receipt Butler"), "a moderated listing leaves the public page");
+  // A public form anyone can post to needs a remedy that is not destructive.
+  check((await get(managePath)).status === 200, "a moderated business keeps its own link");
+
   console.log("Reminders");
   const cronDenied = await fetch(BASE + "/api/cron/reminders");
   check(cronDenied.status === 401, "reminder cron needs its secret");

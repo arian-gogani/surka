@@ -1,6 +1,6 @@
-import { and, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { commitments, results, swaps, type ResultMetric, type SwapStatus } from "@/db/schema";
+import { commitments, parties, results, swaps, type ResultMetric, type SwapStatus } from "@/db/schema";
 import { DAY_MS } from "../dates";
 
 export interface PilotMetrics {
@@ -24,6 +24,16 @@ export interface PilotMetrics {
   swapsFullyKept: number;
   completedSwaps: number;
   resultTotals: Partial<Record<ResultMetric, number>>;
+  /** Businesses on the public partner list. */
+  listedParties: number;
+  /**
+   * Sides of a live swap with a pending deadline and no email on file.
+   *
+   * Nothing will ever chase these, and the only previous signal was a
+   * "skipped" counter in a cron response body nobody reads. Chasing deadlines
+   * is the product, so a swap it cannot chase belongs on the dashboard.
+   */
+  unchaseableSides: number;
 }
 
 const ALL_STATUSES: SwapStatus[] = [
@@ -40,8 +50,18 @@ const ALL_STATUSES: SwapStatus[] = [
 export async function pilotMetrics(db: Db, now = new Date()): Promise<PilotMetrics> {
   const weekAgo = new Date(now.getTime() - 7 * DAY_MS);
 
-  const [statusRows, weekRows, commitmentRows, minutesRows, partyRows, fullyKeptRows, answerRows, resultRows] =
-    await Promise.all([
+  const [
+    statusRows,
+    weekRows,
+    commitmentRows,
+    minutesRows,
+    partyRows,
+    fullyKeptRows,
+    answerRows,
+    resultRows,
+    listedRows,
+    unchaseableRows,
+  ] = await Promise.all([
     db.select({ status: swaps.status, n: sql<number>`count(*)::int` }).from(swaps).groupBy(swaps.status),
     db
       .select({ n: sql<number>`count(*)::int` })
@@ -89,6 +109,22 @@ export async function pilotMetrics(db: Db, now = new Date()): Promise<PilotMetri
       .select({ metric: results.metric, total: sql<number>`sum(${results.value})::bigint` })
       .from(results)
       .groupBy(results.metric),
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(parties)
+      .where(isNotNull(parties.listedAt)),
+    // One row per side of a live swap that has a deadline left and nobody to
+    // send it to. Counted per side, not per commitment, because the fix is one
+    // address either way.
+    db.execute<{ n: number }>(sql`
+      select count(*)::int as n from (
+        select distinct s.id, c.side
+        from swaps s
+        join commitments c on c.swap_id = s.id
+        join parties p on p.id = case when c.side = 'a' then s.party_a_id else s.party_b_id end
+        where s.status = 'accepted' and c.status = 'pending' and p.email is null
+      ) sides
+    `),
   ]);
 
   const swapsByStatus = Object.fromEntries(ALL_STATUSES.map((s) => [s, 0])) as Record<SwapStatus, number>;
@@ -119,5 +155,7 @@ export async function pilotMetrics(db: Db, now = new Date()): Promise<PilotMetri
     swapsFullyKept: Number(keptRows[0]?.n ?? 0),
     completedSwaps: swapsByStatus.completed,
     resultTotals: Object.fromEntries(resultRows.map((r) => [r.metric, Number(r.total)])),
+    listedParties: listedRows[0]?.n ?? 0,
+    unchaseableSides: Number(rowsOf<{ n: number }>(unchaseableRows)[0]?.n ?? 0),
   };
 }

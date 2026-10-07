@@ -16,6 +16,7 @@ import {
   logOperatorMinutes,
   markProposed,
   replaceCommitments,
+  unlistParty,
   verifyCommitment,
 } from "@/lib/services/swaps";
 import type { NewSwapState } from "./swaps/new/state";
@@ -132,6 +133,16 @@ export async function createSwapAction(_prev: NewSwapState, formData: FormData):
     };
   }
   go(`/admin/swaps/${swapId}`, { ok: "Swap created. Check the terms, then send the partner their link." });
+}
+
+export async function unlistPartyAction(formData: FormData) {
+  await requireOperator();
+  try {
+    await unlistParty(await getDb(), String(formData.get("partyId") ?? ""));
+  } catch (error) {
+    go("/admin/listings", { error: messageFor(error) });
+  }
+  go("/admin/listings", { ok: "Taken off the partner list. Their own link still works." });
 }
 
 /** `success` may read the run's result, so an action can report what it actually did. */

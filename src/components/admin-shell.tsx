@@ -6,6 +6,7 @@ import { Notice } from "./ui";
 const NAV = [
   { href: "/admin", label: "Swaps" },
   { href: "/admin/parties", label: "Businesses" },
+  { href: "/admin/listings", label: "Partner list" },
   { href: "/admin/swaps/new", label: "New swap" },
 ];
 

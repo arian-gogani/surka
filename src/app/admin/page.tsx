@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
-import { ButtonLink, StatusPill } from "@/components/ui";
+import { ButtonLink, Notice, StatusPill } from "@/components/ui";
 import { getDb } from "@/db/client";
 import { formatShortDate, relativeDue } from "@/lib/dates";
 import { pilotMetrics } from "@/lib/services/metrics";
@@ -35,12 +35,21 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     },
     { label: "Partners who accept", value: pct(metrics.acceptanceRate), note: "Of proposals answered" },
     {
+      label: "On the partner list",
+      value: String(metrics.listedParties),
+      note: "Businesses a stranger can propose to",
+    },
+    {
       label: "Your time per swap",
       value: metrics.minutesPerCompletedSwap === null ? "None yet" : `${Math.round(metrics.minutesPerCompletedSwap)} min`,
       note: "Average over completed swaps",
     },
     { label: "Back for another", value: String(metrics.repeatParties), note: "Businesses with 2+ agreed swaps" },
   ];
+
+  // Chasing deadlines is the product, and both ways it can fail were visible
+  // only in a cron response body nobody reads.
+  const emailOff = !process.env.RESEND_API_KEY?.trim() || !process.env.EMAIL_FROM?.trim();
 
   return (
     <AdminShell error={error} ok={ok}>
@@ -51,9 +60,24 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         </ButtonLink>
       </div>
 
-      <dl className="grid overflow-hidden rounded-xl border border-line bg-white sm:grid-cols-2 lg:grid-cols-5">
+      {emailOff ? (
+        <Notice tone="error">
+          No reminder has been delivered: RESEND_API_KEY or EMAIL_FROM is missing. Nothing is lost, every due
+          reminder stays due, and the daily run answers 503 until both are set. Until then the dates below are
+          yours to chase by hand.
+        </Notice>
+      ) : metrics.unchaseableSides > 0 ? (
+        <Notice tone="error">
+          {metrics.unchaseableSides === 1
+            ? "One side of a live swap has a deadline coming and no email on file, so nothing will chase it."
+            : `${metrics.unchaseableSides} sides of live swaps have deadlines coming and no email on file, so nothing will chase them.`}{" "}
+          Add an address on the business, or send them their swap link and let them add it themselves.
+        </Notice>
+      ) : null}
+
+      <dl className="grid overflow-hidden rounded-xl border border-line bg-white sm:grid-cols-2 lg:grid-cols-3">
         {score.map((s) => (
-          <div key={s.label} className="border-b border-line p-5 last:border-b-0 sm:border-r lg:border-b-0 lg:last:border-r-0">
+          <div key={s.label} className="border-b border-line p-5 last:border-b-0 sm:border-r lg:last:border-r-0">
             <dt className="text-[13px] text-muted">{s.label}</dt>
             <dd className="num mt-1 font-display text-2xl font-semibold">{s.value}</dd>
             <dd className="mt-1 text-[13px] text-muted">{s.note}</dd>

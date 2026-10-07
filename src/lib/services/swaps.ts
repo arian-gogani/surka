@@ -219,6 +219,26 @@ export async function setListed(
   return party;
 }
 
+/**
+ * The operator taking a listing off the public page.
+ *
+ * Separate from setListed, which needs the holder's token. Anyone can publish
+ * to the directory with no account, so there has to be a remedy for spam, or
+ * for text written about somebody else's business, that does not involve
+ * editing the database by hand. It only clears listedAt: the business, its
+ * link and its record survive, so a mistake here is not destructive.
+ */
+export async function unlistParty(db: Db, partyId: string): Promise<Party> {
+  if (!isUuid(partyId)) throw new SurkaError("That business doesn't exist.", "not_found");
+  const [party] = await db
+    .update(parties)
+    .set({ listedAt: null })
+    .where(eq(parties.id, partyId))
+    .returning();
+  if (!party) throw new SurkaError("That business doesn't exist.", "not_found");
+  return party;
+}
+
 export interface CreatedListing {
   party: Party;
   token: string;

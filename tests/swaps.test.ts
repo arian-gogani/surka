@@ -26,6 +26,7 @@ import {
   listListings,
   setListed,
   setSideEmail,
+  unlistParty,
   updateParty,
   partyForToken,
   recordClick,
@@ -482,6 +483,43 @@ describe("listing without a swap", () => {
     // Side A's link, never side B's: this page must not hand over the partner's.
     expect(view?.swaps[0]?.token).toBe(created.tokens.a);
     expect(view?.swaps[0]?.token).not.toBe(created.tokens.b);
+  });
+});
+
+describe("what the operator can see and undo", () => {
+  it("counts sides of a live swap that nothing can chase", async () => {
+    // seedSwap gives side A an address and side B none.
+    const { swap, tokens } = await seedSwap();
+    expect((await pilotMetrics(db, NOW)).unchaseableSides).toBe(0);
+
+    await markProposed(db, swap.id, NOW);
+    await respond(db, tokens.b, { decision: "accept" }, NOW);
+    expect((await pilotMetrics(db, NOW)).unchaseableSides).toBe(1);
+
+    await setSideEmail(db, tokens.b, { email: "sam@pmweekly.example" });
+    expect((await pilotMetrics(db, NOW)).unchaseableSides).toBe(0);
+  });
+
+  it("lets the operator take a listing down without destroying it", async () => {
+    const { party, token } = await createListing(
+      db,
+      {
+        name: "Spam Factory",
+        kind: "other",
+        offers: "Buy cheap followers at spam.example",
+        needs: "Anyone at all, no questions asked",
+      },
+      NOW,
+    );
+    expect((await pilotMetrics(db, NOW)).listedParties).toBe(1);
+
+    await unlistParty(db, party.id);
+    expect(await listListings(db, NOW)).toEqual([]);
+    expect((await pilotMetrics(db, NOW)).listedParties).toBe(0);
+    // Not destructive: the business, its record and its link all survive, so a
+    // mistaken takedown is recoverable by the holder.
+    expect(await getListingForToken(db, token, NOW)).not.toBeNull();
+    await expectSurka(unlistParty(db, "not-a-uuid"), "not_found");
   });
 });
 
