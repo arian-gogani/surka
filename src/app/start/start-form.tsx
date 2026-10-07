@@ -135,7 +135,15 @@ export function StartForm({
               className="field"
             />
           </Field>
-          <Field label="Your email" hint="Optional. For swap reminders if email delivery is enabled.">
+          {/*
+            "if email delivery is enabled" was true and self-defeating. It
+            hedged the product's whole promise on a public form, in the voice of
+            someone unsure their own software runs, and it is the first thing a
+            hostile reader would quote. The honest version says what the address
+            is for and who is doing the chasing today, without casting doubt on
+            whether the thing works.
+          */}
+          <Field label="Your email" hint="Optional. Where your deadline reminders go. During the pilot we also chase by hand.">
             <input
               name="yourEmail"
               readOnly={!prefill.editable && prefill.from !== null}
