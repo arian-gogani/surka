@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
 import type { SwapStatus } from "@/db/schema";
 import { messageFor } from "@/lib/errors";
-import { markDelivered, reportResult, respond, setSideEmail } from "@/lib/services/swaps";
+import { markDelivered, reportResult, respond, setListed, setSideEmail } from "@/lib/services/swaps";
 
 function backTo(token: string, params: Record<string, string>): never {
   redirect(`/d/${encodeURIComponent(token)}?${new URLSearchParams(params)}`);
@@ -83,4 +83,23 @@ export async function setEmailAction(formData: FormData) {
     backTo(token, { error: messageFor(error) });
   }
   backTo(token, { ok: "Saved. We'll remind you before each deadline." });
+}
+
+export async function setListedAction(formData: FormData) {
+  const token = String(formData.get("token") ?? "");
+  const listed = formData.get("listed") !== null;
+  try {
+    await setListed(await getDb(), token, {
+      listed,
+      offers: formData.get("offers"),
+      needs: formData.get("needs"),
+    });
+  } catch (error) {
+    backTo(token, { error: messageFor(error) });
+  }
+  backTo(token, {
+    ok: listed
+      ? "You're on the partner list. Founders can propose swaps to you from there."
+      : "Taken off the partner list.",
+  });
 }

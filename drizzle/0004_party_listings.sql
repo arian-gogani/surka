@@ -1,0 +1,1 @@
+ALTER TABLE "parties" ADD COLUMN "listed_at" timestamp with time zone;

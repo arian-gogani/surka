@@ -28,7 +28,25 @@ export interface Prefill {
  * useActionState degrades: with JavaScript off the form posts normally and the
  * server renders the same state, so nothing here depends on the script loading.
  */
-export function StartForm({ prefill, today, inTwoWeeks }: { prefill: Prefill; today: string; inTwoWeeks: string }) {
+/** A business from the directory this proposal is aimed at. */
+export interface Target {
+  id: string;
+  name: string;
+  kind: string;
+  needs: string;
+}
+
+export function StartForm({
+  prefill,
+  target,
+  today,
+  inTwoWeeks,
+}: {
+  prefill: Prefill;
+  target: Target | null;
+  today: string;
+  inTwoWeeks: string;
+}) {
   const [state, action] = useActionState(startSwapAction, EMPTY_START);
   // Prefer what they just typed, then the business carried over from a link.
   const kept = (name: StartField, fallback = "") => state.values[name] ?? fallback;
@@ -43,6 +61,9 @@ export function StartForm({ prefill, today, inTwoWeeks }: { prefill: Prefill; to
 
       <form action={action} className="mt-10 space-y-8">
         {prefill.from ? <input type="hidden" name="from" value={prefill.from} /> : null}
+        {/* The id, not the name: the action reuses this exact business so the
+            record the directory advertises keeps accumulating. */}
+        {target ? <input type="hidden" name="with" value={target.id} /> : null}
 
         <Field label="What's the swap?" hint="A few words. Both sides see this.">
           <input
@@ -130,19 +151,32 @@ export function StartForm({ prefill, today, inTwoWeeks }: { prefill: Prefill; to
 
         <fieldset className="space-y-4 rounded-xl border border-line bg-white p-5">
           <legend className="px-2 text-sm font-semibold">Their side</legend>
-          <div className="grid gap-4 sm:grid-cols-2">
+          {target ? (
+            <>
+              <p className="text-[15px]">
+                <span className="font-medium">{target.name}</span>
+                <span className="text-muted"> from the partner list.</span>
+              </p>
+              {target.needs ? (
+                <p className="max-w-prose text-[15px] leading-relaxed text-muted">
+                  They said they&apos;re looking for: {target.needs}
+                </p>
+              ) : null}
+            </>
+          ) : null}
+          <div className={`grid gap-4 sm:grid-cols-2 ${target ? "hidden" : ""}`}>
             <Field label="Their business">
               <input
                 name="partnerName"
-                required
+                required={!target}
                 maxLength={120}
-                defaultValue={kept("partnerName")}
+                defaultValue={kept("partnerName", target?.name ?? "")}
                 placeholder="Practice Manager Weekly"
                 className="field"
               />
             </Field>
             <Field label="What kind">
-              <select name="partnerKind" className="field" defaultValue={kept("partnerKind", "newsletter")}>
+              <select name="partnerKind" className="field" defaultValue={kept("partnerKind", target?.kind || "newsletter")}>
                 {KINDS.map((k) => (
                   <option key={k.value} value={k.value}>
                     {k.label}
@@ -151,7 +185,7 @@ export function StartForm({ prefill, today, inTwoWeeks }: { prefill: Prefill; to
               </select>
             </Field>
           </div>
-          <Field label="Website" hint="Optional">
+          <Field label="Website" hint="Optional" className={target ? "hidden" : ""}>
             <input
               name="partnerWebsite"
               type="url"
@@ -160,7 +194,10 @@ export function StartForm({ prefill, today, inTwoWeeks }: { prefill: Prefill; to
               className="field"
             />
           </Field>
-          <Field label="What they'll give" hint="They can accept this, suggest changes, or decline.">
+          <Field
+            label={target ? `What ${target.name} would give` : "What they'll give"}
+            hint="They can accept this, suggest changes, or decline."
+          >
             <input
               name="partnerGive"
               required

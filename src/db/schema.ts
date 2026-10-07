@@ -43,7 +43,17 @@ export const parties = pgTable("parties", {
   email: text("email"),
   offers: text("offers"),
   needs: text("needs"),
+  /** Operator-only. Never shown to either side, and never in the directory. */
   notes: text("notes"),
+  /**
+   * When this business asked to be findable, or null.
+   *
+   * Opt-in, and only ever set by someone holding one of that business's swap
+   * links, which is what proves they are it. Until a swap needed two founders
+   * who already knew each other, which meant every swap needed the operator to
+   * personally know both of them.
+   */
+  listedAt: timestamp("listed_at", { withTimezone: true }),
   createdAt: createdAt(),
 });
 

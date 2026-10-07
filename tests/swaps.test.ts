@@ -18,6 +18,10 @@ import {
   markProposed,
   partyRecord,
   partyRecords,
+  getListing,
+  getParty,
+  listListings,
+  setListed,
   setSideEmail,
   updateParty,
   partyForToken,
@@ -305,6 +309,96 @@ describe("tracking and results", () => {
     expect(view.results).toHaveLength(2);
     // Replacing does not lose the history: the timeline keeps every submission.
     expect(view.events.filter((e) => e.type === "result_added")).toHaveLength(3);
+  });
+});
+
+describe("the partner list", () => {
+  async function agreed() {
+    const seeded = await seedSwap();
+    await markProposed(db, seeded.swap.id, NOW);
+    await respond(db, seeded.tokens.b, { decision: "accept" }, NOW);
+    return seeded;
+  }
+
+  it("shows nobody until somebody opts in", async () => {
+    await agreed();
+    expect(await listListings(db, NOW)).toEqual([]);
+  });
+
+  it("lists the business on the holder's own side, and only that one", async () => {
+    const { app, newsletter, tokens } = await agreed();
+    await setListed(db, tokens.b, {
+      listed: "yes",
+      offers: "A dedicated section to 9,000 practice managers",
+      needs: "A tool my readers would actually use",
+    });
+
+    const listings = await listListings(db, NOW);
+    expect(listings.map((l) => l.id)).toEqual([newsletter.id]);
+    expect(listings.map((l) => l.id)).not.toContain(app.id);
+    expect(listings[0]?.offers).toContain("9,000 practice managers");
+  });
+
+  it("never publishes an email, a contact name, or the operator's notes", async () => {
+    const { newsletter, tokens } = await agreed();
+    await updateParty(db, newsletter.id, {
+      name: "Practice Manager Weekly",
+      kind: "newsletter",
+      email: "editor@pmweekly.example",
+      contactName: "Sam",
+      notes: "Slow to reply. Chase twice.",
+    });
+    await setListed(db, tokens.b, {
+      listed: "yes",
+      offers: "A dedicated section in the next issue",
+      needs: "Something my readers would use daily",
+    });
+
+    const [listing] = await listListings(db, NOW);
+    const published = JSON.stringify(listing);
+    expect(published).not.toContain("editor@pmweekly.example");
+    expect(published).not.toContain("Sam");
+    expect(published).not.toContain("Chase twice");
+  });
+
+  it("won't list a business that says nothing useful", async () => {
+    const { tokens } = await agreed();
+    await expectSurka(setListed(db, tokens.b, { listed: "yes", offers: "stuff", needs: "" }), "invalid");
+    expect(await listListings(db, NOW)).toEqual([]);
+  });
+
+  it("takes a business back off without losing what it wrote", async () => {
+    const { newsletter, tokens } = await agreed();
+    await setListed(db, tokens.b, {
+      listed: "yes",
+      offers: "A dedicated section in the next issue",
+      needs: "Something my readers would use daily",
+    });
+    await setListed(db, tokens.b, { listed: "" });
+    expect(await listListings(db, NOW)).toEqual([]);
+    // Delisting is not deleting: re-listing shouldn't mean retyping both boxes.
+    expect((await getParty(db, newsletter.id))?.offers).toContain("dedicated section");
+  });
+
+  it("refuses an unknown link rather than listing a guess", async () => {
+    await expectSurka(
+      setListed(db, "not-a-real-token", { listed: "yes", offers: "x".repeat(20), needs: "y".repeat(20) }),
+      "not_found",
+    );
+  });
+
+  it("only resolves a listing for a business that is actually listed", async () => {
+    const { app, newsletter, tokens } = await agreed();
+    await setListed(db, tokens.b, {
+      listed: "yes",
+      offers: "A dedicated section in the next issue",
+      needs: "Something my readers would use daily",
+    });
+    // /start?with= takes a public id, so it must not be a way to attach a
+    // proposal to a business that never asked to be found.
+    expect(await getListing(db, newsletter.id, NOW)).not.toBeNull();
+    expect(await getListing(db, app.id, NOW)).toBeNull();
+    expect(await getListing(db, "not-a-uuid", NOW)).toBeNull();
   });
 });
 

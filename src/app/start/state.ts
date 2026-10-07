@@ -7,6 +7,7 @@
  */
 export const START_FIELDS = [
   "from",
+  "with",
   "title",
   "yourName",
   "yourKind",

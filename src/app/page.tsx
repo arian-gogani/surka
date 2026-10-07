@@ -58,14 +58,19 @@ export default function Home() {
               >
                 Start a swap
               </a>
+              {/* The other half of the funnel. "Start a swap" assumes you
+                  already have a partner, which most visitors do not, and until
+                  this page existed they had nowhere to go. */}
               <a
-                href="#how"
+                href="/partners"
                 className="inline-flex min-h-11 items-center rounded-md border border-line-strong bg-white px-5 text-[15px] font-medium text-ink hover:border-ink"
               >
-                See how a swap runs
+                Find a partner
               </a>
             </div>
-            <p className="mt-4 text-[15px] text-muted">Your part: agree to the terms, approve the assets, and deliver your side.</p>
+            <p className="mt-4 text-[15px] text-muted">
+              No account, for you or for them. <a href="#how" className="underline underline-offset-4">See how a swap runs</a>.
+            </p>
           </div>
 
           <DealSheet

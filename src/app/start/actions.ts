@@ -3,9 +3,9 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
-import { messageFor } from "@/lib/errors";
+import { messageFor, SurkaError } from "@/lib/errors";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
-import { createParty, createSwap, partyForToken, updatePartyIdentity } from "@/lib/services/swaps";
+import { createParty, createSwap, getListing, getParty, partyForToken, updatePartyIdentity } from "@/lib/services/swaps";
 import { commitmentInput, firstIssue, swapTitle } from "@/lib/validation";
 import { START_FIELDS, type StartField, type StartState } from "./state";
 
@@ -66,13 +66,24 @@ export async function startSwapAction(_previous: StartState, formData: FormData)
       website: field("yourWebsite") || null,
       email: field("yourEmail") || null,
     };
+    // Proposing to a business from the directory reuses that business rather
+    // than minting a copy of it. Otherwise every proposal aimed at the same
+    // listing creates another row, and the record the directory is advertising
+    // never accumulates. Only listed businesses: this is a public id, and it
+    // must not be a way to attach yourself to a private one.
+    const target = field("with") ? await getListing(db, field("with")) : null;
     const [you, partner] = await Promise.all([
       returning ? updatePartyIdentity(db, returning.id, mine) : createParty(db, mine),
-      createParty(db, {
-        name: field("partnerName"),
-        kind: field("partnerKind") || "other",
-        website: field("partnerWebsite") || null,
-      }),
+      target
+        ? getParty(db, target.id).then((row) => {
+            if (!row) throw new SurkaError("That business isn't listed anymore.", "not_found");
+            return row;
+          })
+        : createParty(db, {
+            name: field("partnerName"),
+            kind: field("partnerKind") || "other",
+            website: field("partnerWebsite") || null,
+          }),
     ]);
 
     const created = await createSwap(

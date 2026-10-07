@@ -86,6 +86,25 @@ export const swapInput = z
   );
 export type SwapInput = z.input<typeof swapInput>;
 
+/**
+ * The directory opt-in. Offers and needs are required when listing, because an
+ * entry that describes nothing costs every reader a click to discover that.
+ */
+export const listingInput = z
+  .object({
+    listed: z.coerce.boolean(),
+    offers: z.string().trim().max(1000, "Keep this under 1000 characters").default(""),
+    needs: z.string().trim().max(1000, "Keep this under 1000 characters").default(""),
+  })
+  .refine((v) => !v.listed || v.offers.length >= 10, {
+    message: "Say what you can offer a partner, in a sentence or so",
+    path: ["offers"],
+  })
+  .refine((v) => !v.listed || v.needs.length >= 10, {
+    message: "Say what you're looking for, in a sentence or so",
+    path: ["needs"],
+  });
+
 /** Just the address, for the reminders form on an agreed swap. */
 export const sideEmailInput = z.object({ email });
 

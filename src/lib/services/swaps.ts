@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { z } from "zod";
 import type { Db } from "@/db/client";
@@ -14,6 +14,7 @@ import {
   trackingLinks,
   type Commitment,
   type CommitmentStatus,
+  type PartyKind,
   type OpenedBy,
   type Party,
   type ResponseRow,
@@ -28,7 +29,7 @@ import {
 import { contactEmail } from "../env";
 import { SurkaError } from "../errors";
 import { newAccessToken, newTrackingCode } from "../ids";
-import { type CheckedCommitment, computeRecord, type TrackRecord } from "../reputation";
+import { type CheckedCommitment, computeRecord, NO_RECORD, type TrackRecord } from "../reputation";
 import {
   allResolved,
   assertTransition,
@@ -40,6 +41,7 @@ import {
 import {
   commitmentInput,
   firstIssue,
+  listingInput,
   partyIdentityInput,
   partyInput,
   proofInput,
@@ -138,6 +140,88 @@ export async function updatePartyIdentity(db: Db, partyId: string, input: unknow
   const [party] = await db.update(parties).set(values).where(eq(parties.id, partyId)).returning();
   if (!party) throw new SurkaError("That business doesn't exist.", "not_found");
   return party;
+}
+
+/** What the public directory shows. Never an email, a contact name, or notes. */
+export interface Listing {
+  id: string;
+  name: string;
+  kind: PartyKind;
+  website: string | null;
+  offers: string;
+  needs: string;
+  record: TrackRecord;
+  listedAt: Date;
+}
+
+/**
+ * A link holder asking to be findable, or asking to stop being.
+ *
+ * Gated on a token because the token is what proves the holder is that
+ * business. Offers and needs are required to list: a directory entry that says
+ * nothing is worse than no entry, since it costs a reader a click to find out.
+ */
+export async function setListed(
+  db: Db,
+  token: string,
+  input: unknown,
+  now = new Date(),
+): Promise<Party> {
+  const values = parse(listingInput, input);
+  const access = await requireAccess(db, token);
+  const swap = await requireSwap(db, access.swapId);
+  const partyId = access.side === "a" ? swap.partyAId : swap.partyBId;
+  const [party] = await db
+    .update(parties)
+    .set(
+      values.listed
+        ? { offers: values.offers, needs: values.needs, listedAt: now }
+        : { listedAt: null },
+    )
+    .where(eq(parties.id, partyId))
+    .returning();
+  if (!party) throw new SurkaError("That business doesn't exist.", "not_found");
+  await logEvent(db, swap.id, values.listed ? "listed" : "unlisted", { side: access.side });
+  return party;
+}
+
+/**
+ * The public directory: businesses that asked to be found, newest first.
+ *
+ * One query for the rows and one for every record, because this page is the
+ * growth loop and will be the most-read page on the site.
+ */
+export async function listListings(db: Db, now = new Date()): Promise<Listing[]> {
+  const [rows, records] = await Promise.all([
+    db
+      .select({
+        id: parties.id,
+        name: parties.name,
+        kind: parties.kind,
+        website: parties.website,
+        offers: parties.offers,
+        needs: parties.needs,
+        listedAt: parties.listedAt,
+      })
+      .from(parties)
+      .where(isNotNull(parties.listedAt))
+      .orderBy(desc(parties.listedAt)),
+    partyRecords(db, now),
+  ]);
+  return rows.map((row) => ({
+    ...row,
+    offers: row.offers ?? "",
+    needs: row.needs ?? "",
+    listedAt: row.listedAt as Date,
+    record: records.get(row.id) ?? NO_RECORD,
+  }));
+}
+
+/** One listing, for prefilling a proposal aimed at a specific business. */
+export async function getListing(db: Db, partyId: string, now = new Date()): Promise<Listing | null> {
+  if (!isUuid(partyId)) return null;
+  const all = await listListings(db, now);
+  return all.find((l) => l.id === partyId) ?? null;
 }
 
 export async function listParties(db: Db): Promise<Party[]> {

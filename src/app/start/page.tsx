@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Logo } from "@/components/logo";
 import { getDb } from "@/db/client";
 import { addDays, toDateOnly } from "@/lib/dates";
-import { partyForToken } from "@/lib/services/swaps";
+import { getListing, partyForToken } from "@/lib/services/swaps";
 import { StartForm } from "./start-form";
 
 /**
@@ -27,14 +27,21 @@ export async function generateMetadata({
   };
 }
 
-export default async function StartPage({ searchParams }: { searchParams: Promise<{ from?: string }> }) {
-  const { from } = await searchParams;
+type Query = { from?: string; with?: string };
+
+export default async function StartPage({ searchParams }: { searchParams: Promise<Query> }) {
+  const { from, with: withId } = await searchParams;
   // A deadline in the past is always a mis-click here, so the picker won't offer one.
   const today = toDateOnly(new Date());
   const inTwoWeeks = addDays(today, 14);
+  const db = await getDb();
   // Arriving from an existing swap link: we already know who this side is, and
   // reusing that business is what lets their track record build up over swaps.
-  const you = from ? await partyForToken(await getDb(), from) : null;
+  // Arriving from a directory listing: we know who the partner is the same way.
+  const [you, target] = await Promise.all([
+    from ? partyForToken(db, from) : null,
+    withId ? getListing(db, withId) : null,
+  ]);
 
   return (
     <div className="min-h-screen">
@@ -46,11 +53,12 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
 
       <main className="mx-auto max-w-3xl px-5 pb-24 sm:px-8">
         <h1 className="max-w-[18ch] text-[36px] font-semibold leading-[1.05] sm:text-[44px]">
-          Write the swap down, and we&apos;ll hold both sides to it.
+          {target ? `Propose a swap to ${target.name}.` : "Write the swap down, and we'll hold both sides to it."}
         </h1>
         <p className="mt-5 max-w-prose text-lg leading-relaxed text-muted">
-          Two minutes. You get a private link for yourself and one to send your partner. Neither of you
-          needs an account.
+          {target
+            ? `Two minutes. We'll give you a link to send ${target.name}, and they can accept it, suggest changes, or decline. Neither of you needs an account.`
+            : "Two minutes. You get a private link for yourself and one to send your partner. Neither of you needs an account."}
         </p>
 
         <StartForm
@@ -63,6 +71,11 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
             website: you?.website ?? "",
             email: you?.email ?? "",
           }}
+          target={
+            target
+              ? { id: target.id, name: target.name, kind: target.kind, needs: target.needs }
+              : null
+          }
         />
       </main>
     </div>

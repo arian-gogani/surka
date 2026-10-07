@@ -113,6 +113,8 @@ async function run() {
   console.log("Public pages");
   const home = await get("/");
   check(home.status === 200 && home.html.includes("Partner swaps that actually happen"), "landing page renders");
+  const partners = await get("/partners");
+  check(partners.status === 200 && partners.html.includes("Nobody is listed yet"), "empty partner list renders");
   check((await get("/d/not-a-real-token")).status === 404, "unknown swap link is a 404");
   check((await get("/admin")).location?.endsWith("/admin/login"), "dashboard redirects to sign in");
 
@@ -224,6 +226,60 @@ async function run() {
   }
   const finished = await get(`/d/${partnerToken}`);
   check(finished.html.includes("This swap is complete"), "swap completes when everything is checked");
+
+  console.log("The partner list, and proposing from it");
+  const thin = await submit(`/d/${partnerToken}`, 'name="offers"', {
+    token: partnerToken,
+    listed: "yes",
+    offers: "stuff",
+    needs: "",
+  });
+  check(query(thin.location, "error") !== null, "a listing has to say something useful");
+
+  const listed = await submit(`/d/${partnerToken}`, 'name="offers"', {
+    token: partnerToken,
+    listed: "yes",
+    offers: "A dedicated section to 9,000 practice managers",
+    needs: "A scheduling tool my readers would use daily",
+  });
+  check(query(listed.location, "ok")?.includes("partner list") ?? false, "partner adds itself to the list");
+
+  const list = await get("/partners");
+  check(list.html.includes("Practice Manager Weekly"), "the list shows the business");
+  check(list.html.includes("9,000 practice managers"), "the list shows what it offers");
+  // The whole reason the page is worth reading: the record beside the name.
+  check(list.html.includes("Kept 1 of 1 commitment"), "the list shows the kept record");
+  check(!list.html.includes("sam@pmweekly.example"), "the list never publishes an email");
+
+  const listedId = list.html.match(/\/start\?with=([0-9a-f-]{36})/)?.[1];
+  check(Boolean(listedId), "the list offers a way to propose");
+  const aimed = await get(`/start?with=${listedId}`);
+  check(aimed.html.includes("Propose a swap to Practice Manager Weekly"), "proposing from the list names them");
+  check(aimed.html.includes("readers would use daily"), "proposing from the list shows what they want");
+
+  const fromList = await submit(`/start?with=${listedId}`, 'name="partnerGive"', {
+    with: listedId,
+    title: "Swap found through the list",
+    yourName: "Invoice Nudge",
+    yourKind: "app",
+    yourGive: "A spot in our onboarding email to 2,000 new users",
+    yourDue: due,
+    partnerGive: "A dedicated section in the December issue",
+    partnerDue: due,
+  });
+  check(fromList.location.startsWith("/start/sent"), "a stranger can propose straight from the list");
+
+  // Reusing the listed business is the point: a fresh row would reset the very
+  // record the list is advertising.
+  const businesses = await get("/admin/parties");
+  // The rendered rows, not raw occurrences: Next inlines the RSC payload in the
+  // same document, so every visible string appears in the HTML twice.
+  const names = [...businesses.html.matchAll(/class="font-medium">([^<]+)</g)].map((m) => m[1]);
+  check(
+    names.filter((n) => n === "Practice Manager Weekly").length === 1,
+    "proposing from the list reuses the business instead of copying it",
+  );
+  check(names.includes("Invoice Nudge"), "the proposing stranger is recorded as its own business");
 
   console.log("Reminders");
   const cronDenied = await fetch(BASE + "/api/cron/reminders");

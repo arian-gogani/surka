@@ -12,7 +12,7 @@ import { SurkaError } from "@/lib/errors";
 import { sheetSide } from "@/lib/present";
 import { getSwapForToken, type SideView } from "@/lib/services/swaps";
 import { otherSide } from "@/lib/swap-rules";
-import { deliverAction, reportResultAction, respondAction, setEmailAction } from "./actions";
+import { deliverAction, reportResultAction, respondAction, setEmailAction, setListedAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -153,6 +153,7 @@ export default async function SwapLinkPage({ params, searchParams }: Props) {
             myName={myParty.name}
             theirName={theirParty.name}
             myEmail={myParty.email}
+            myParty={myParty}
           />
         ) : null}
 
@@ -240,9 +241,12 @@ function RunYourOwn({ token }: { token: string }) {
       </p>
       {/* The token proves which business this is, which is what lets the next
           swap reuse the same party instead of starting their record from zero. */}
-      <ButtonLink href={`/start?from=${token}`} variant="action" className="mt-5">
-        Start a swap
-      </ButtonLink>
+      <div className="mt-5 flex flex-wrap gap-3">
+        <ButtonLink href={`/start?from=${token}`} variant="action">
+          Start a swap
+        </ButtonLink>
+        <ButtonLink href="/partners">Find a partner</ButtonLink>
+      </div>
     </aside>
   );
 }
@@ -297,6 +301,51 @@ function RespondForm({ token }: { token: string }) {
 }
 
 /**
+ * The directory opt-in.
+ *
+ * Here rather than on a public form because the token is what proves the
+ * holder is this business, and after an agreed swap because the record beside
+ * the name is the only reason the list is worth reading. This is also the
+ * growth loop: every swap puts two founders in front of this form, and every
+ * listing is a page a stranger can propose from without an introduction.
+ */
+function ListingForm({ token, party }: { token: string; party: SideView["partyA"] }) {
+  const listed = party.listedAt !== null;
+  return (
+    <form action={setListedAction} className="rounded-xl border border-line bg-white p-5 sm:p-6">
+      <h2 className="text-xl font-semibold">
+        {listed ? `${party.name} is on the partner list` : "Want partners to find you?"}
+      </h2>
+      <p className="mt-2 max-w-prose text-muted">
+        {listed
+          ? "Founders can propose swaps to you from the partner list, with your record of kept commitments next to your name. Edit what it says, or take yourself off."
+          : "Say what you can offer and what you're after, and founders can propose swaps to you without an introduction. Your record of kept commitments shows next to your name. No email or contact details are ever shown."}
+      </p>
+      <div className="mt-4 space-y-4">
+        <Field label="What you can offer a partner" hint="Audience, placements, an integration, a bundle.">
+          <textarea name="offers" rows={2} maxLength={1000} defaultValue={party.offers ?? ""} className="field" />
+        </Field>
+        <Field label="What you're looking for">
+          <textarea name="needs" rows={2} maxLength={1000} defaultValue={party.needs ?? ""} className="field" />
+        </Field>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        {/* A checkbox the browser omits when unchecked, which is how one form
+            both lists and unlists without a second route. */}
+        <Button type="submit" name="listed" value="yes" variant="action">
+          {listed ? "Save" : "Add me to the list"}
+        </Button>
+        {listed ? <Button type="submit">Take me off</Button> : null}
+        <a href="/partners" className="text-[15px] text-muted underline underline-offset-4">
+          See the list
+        </a>
+      </div>
+      <input type="hidden" name="token" value={token} />
+    </form>
+  );
+}
+
+/**
  * Offered to whichever side has no address on file, which is the proposer on
  * every swap (nothing ever asks them) and the partner whenever they left the
  * field blank. Without an address this swap runs to its deadlines in silence.
@@ -333,6 +382,7 @@ function SwapRoom({
   myName,
   theirName,
   myEmail,
+  myParty,
 }: {
   view: SideView;
   me: Side;
@@ -340,6 +390,7 @@ function SwapRoom({
   myName: string;
   theirName: string;
   myEmail: string | null;
+  myParty: SideView["partyA"];
 }) {
   const now = new Date();
   const mine = view.commitments.filter((c) => c.side === me);
@@ -359,6 +410,8 @@ function SwapRoom({
       </div>
 
       {!myEmail && !done ? <ReminderForm token={view.token} /> : null}
+
+      <ListingForm token={view.token} party={myParty} />
 
       <section aria-labelledby="mine">
         <h2 id="mine" className="mb-3 text-xl font-semibold">
