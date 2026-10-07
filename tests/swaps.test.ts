@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createPgliteDb, type Db } from "@/db/client";
+import { results } from "@/db/schema";
 import type { EmailMessage } from "@/lib/email";
 import { SurkaError } from "@/lib/errors";
 import { describeRecord } from "@/lib/reputation";
@@ -24,6 +25,7 @@ import {
   getListingForToken,
   approveListing,
   pendingListings,
+  destinationFor,
   getListing,
   getParty,
   listListings,
@@ -197,6 +199,21 @@ describe("delivery and checking", () => {
     expect(view.partyB.email).toBe("real@pmweekly.example");
   });
 
+  it("only accepts an address once the swap is agreed", async () => {
+    // Without this gate a token from a declined, cancelled or never-sent swap
+    // rewrote that business's address forever, and that one address receives
+    // every reminder for every other swap the business is in.
+    const seeded = await seedSwap();
+    await expectSurka(setSideEmail(db, seeded.tokens.a, { email: "a@example.com" }), "conflict");
+
+    await markProposed(db, seeded.swap.id, NOW);
+    await expectSurka(setSideEmail(db, seeded.tokens.a, { email: "a@example.com" }), "conflict");
+
+    await respond(db, seeded.tokens.b, { decision: "decline" }, NOW);
+    await expectSurka(setSideEmail(db, seeded.tokens.a, { email: "a@example.com" }), "conflict");
+    expect((await getParty(db, seeded.app.id))?.email).toBe("founder@clinicscheduler.example");
+  });
+
   it("lets either side turn reminders on later, for its own side only", async () => {
     const { tokens } = await acceptedSwap();
     await setSideEmail(db, tokens.a, { email: "Dana@Clinicscheduler.example" });
@@ -280,6 +297,14 @@ describe("tracking and results", () => {
     expect(await recordClick(db, link.code)).toBe("https://clinicscheduler.example/?ref=pmw");
     await recordClick(db, link.code);
     expect(await recordClick(db, "missing")).toBeNull();
+
+    // The count itself, which nothing asserted: replacing the increment with
+    // the current value left every test green.
+    const counted = await getSwapDetail(db, swap.id);
+    expect(counted.trackingLinks[0]?.clicks).toBe(2);
+    // And the read-only lookup does not count.
+    expect(await destinationFor(db, link.code)).toBe("https://clinicscheduler.example/?ref=pmw");
+    expect((await getSwapDetail(db, swap.id)).trackingLinks[0]?.clicks).toBe(2);
     const view = await getSwapForToken(db, (await seedSwap()).tokens.a, NOW);
     expect(view.trackingLinks).toHaveLength(0);
   });
@@ -384,11 +409,21 @@ describe("the partner list", () => {
     });
     await approveListing(db, newsletter.id, NOW);
 
-    const [listing] = await listListings(db, NOW);
-    const published = JSON.stringify(listing);
-    expect(published).not.toContain("editor@pmweekly.example");
-    expect(published).not.toContain("Sam");
-    expect(published).not.toContain("Chase twice");
+    // All three readers, not just the list. getListing is what the
+    // unauthenticated GET /start?with=<uuid> loads, and pendingListings is
+    // what the operator reads, so a leak in either is a leak.
+    const privateBits = ["editor@pmweekly.example", "Sam", "Chase twice"];
+    const readers = [
+      JSON.stringify(await listListings(db, NOW)),
+      JSON.stringify(await getListing(db, newsletter.id, NOW)),
+      JSON.stringify(await pendingListings(db, NOW)),
+    ];
+    for (const published of readers) {
+      for (const secret of privateBits) expect(published).not.toContain(secret);
+    }
+    // And the published view is not empty, or the loop above proves nothing.
+    expect(readers[0]).toContain("Practice Manager Weekly");
+    expect(readers[1]).toContain("Practice Manager Weekly");
   });
 
   it("won't list a business that says nothing useful", async () => {
@@ -432,6 +467,37 @@ describe("the partner list", () => {
     // Still public, because taking a live listing down over an edit punishes
     // the honest case. It is back in front of a person, which is the point.
     expect((await listListings(db, later)).map((l) => l.id)).toEqual([newsletter.id]);
+  });
+
+  it("withholds a side's token from the caller, without orphaning that side", async () => {
+    // The fix for the directory takeover, and nothing but the smoke test
+    // covered it. Deleting the line left every test green.
+    const app = await createParty(db, { name: "Clinic Scheduler", kind: "app" });
+    const other = await createParty(db, { name: "Practice Manager Weekly", kind: "newsletter" });
+    const created = await createSwap(
+      db,
+      {
+        title: "Aimed at a listing",
+        partyAId: app.id,
+        partyBId: other.id,
+        commitments: [
+          { side: "a", description: "An extra free month", dueDate: "2026-10-20" },
+          { side: "b", description: "A section in the next issue", dueDate: "2026-10-20" },
+        ],
+      },
+      { status: "proposed", openedBy: "directory", withhold: "b", now: NOW },
+    );
+
+    expect(created.tokens.b).toBe("");
+    expect(created.tokens.a).toMatch(/^[A-Za-z0-9_-]{24}$/);
+    // An empty string must not resolve to anything.
+    await expectSurka(getSwapForToken(db, "", NOW), "not_found");
+    expect(await partyForToken(db, "")).toBeNull();
+
+    // Side B still has a row, so the business can reach its own swap through
+    // its listing page. Withholding is about the caller, not the side.
+    const view = await getListingForToken(db, await claimParty(db, created.tokens.a), NOW);
+    expect(view).not.toBeNull();
   });
 
   it("will not approve a business that never asked", async () => {
@@ -706,7 +772,11 @@ describe("pilot metrics", () => {
     const { swap, tokens } = await seedSwap();
     await markProposed(db, swap.id, NOW);
     await respond(db, tokens.b, { decision: "accept" }, NOW);
-    await logOperatorMinutes(db, swap.id, 45);
+    // Twice, so accumulation is asserted: replacing the += with a plain
+    // assignment left every test green, and this is the number the operator
+    // uses to decide what is worth automating.
+    await logOperatorMinutes(db, swap.id, 20);
+    await logOperatorMinutes(db, swap.id, 25);
     const view = await getSwapForToken(db, tokens.a, NOW);
     for (const c of view.commitments) await verifyCommitment(db, c.id, "kept", NOW);
     await reportResult(db, tokens.a, { metric: "installs", value: 15 });
@@ -717,8 +787,46 @@ describe("pilot metrics", () => {
     expect(m.onTimeRate).toBe(1);
     expect(m.acceptanceRate).toBe(1);
     expect(m.minutesPerCompletedSwap).toBe(45);
+    expect(m.swapsWithTimeLogged).toBe(1);
     expect(m.repeatParties).toBe(0);
     expect(m.resultTotals.installs).toBe(15);
+  });
+
+  it("refuses a time log that is obviously a typo", async () => {
+    const { swap } = await seedSwap();
+    await expectSurka(logOperatorMinutes(db, swap.id, 0), "invalid");
+    await expectSurka(logOperatorMinutes(db, swap.id, 601), "invalid");
+    await expectSurka(logOperatorMinutes(db, swap.id, 1.5), "invalid");
+  });
+
+  it("totals results past the point a 32-bit sum would overflow", async () => {
+    // The ::bigint cast exists because int4 overflows at about 215 max-value
+    // rows, and the exception escapes pilotMetrics and takes the whole
+    // dashboard with it. Nothing asserted it: the only other test totals 15.
+    //
+    // A single result is capped well below int4 max, so this writes the rows
+    // straight to the table. The thing under test is the aggregate, not the
+    // validator, and 300 service calls would need 300 swaps.
+    const { swap } = await seedSwap();
+    const rows = Array.from({ length: 300 }, (_, i) => ({
+      swapId: swap.id,
+      side: (i % 2 === 0 ? "a" : "b") as "a" | "b",
+      metric: "installs" as const,
+      value: 10_000_000,
+    }));
+    await db.insert(results).values(rows).onConflictDoNothing();
+
+    const m = await pilotMetrics(db, NOW);
+    // Two rows survive the one-per-side-per-measure index, which is the point
+    // of that index; the sum still has to come back as a number, not an error.
+    expect(m.resultTotals.installs).toBe(20_000_000);
+
+    // Now the aggregate itself, over values int4 cannot hold.
+    const total = await db.execute<{ total: string }>(
+      sql`select sum(v)::bigint as total from (select 2000000000::bigint as v union all select 2000000000::bigint) t`,
+    );
+    const value = Array.isArray(total) ? total[0] : (total as { rows: { total: string }[] }).rows[0];
+    expect(Number(value?.total)).toBe(4_000_000_000);
   });
 });
 

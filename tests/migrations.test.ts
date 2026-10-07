@@ -47,8 +47,16 @@ describe("the migration journal", () => {
     // currently-serving deployment runs against the new schema. That only
     // stays safe while every migration is additive. Dropping something is a
     // two-release job: stop reading it, ship, then drop in a later migration.
-    const forbidden = /\b(drop\s+table|drop\s+column|alter\s+column|rename\s+(table|column|to))\b/i;
+    // Deleting or blanking rows counts too. "Additive" was only checked
+    // against schema statements, so TRUNCATE "events" or UPDATE "parties" SET
+    // "email" = NULL passed, either of which destroys production data.
+    const forbidden =
+      /\b(drop\s+table|drop\s+column|alter\s+column|rename\s+(table|column|to)|truncate|delete\s+from|update\s+"?\w+"?\s+set)\b/i;
+    // 0007 deliberately collapses duplicate results before adding a unique
+    // index over them. Named explicitly so the exception cannot spread.
+    const allowed = new Set(["0007_one_result_per_measure"]);
     for (const entry of journal().entries) {
+      if (allowed.has(entry.tag)) continue;
       const sql = readFileSync(path.join(DRIZZLE, `${entry.tag}.sql`), "utf8");
       const offending = sql
         .split("--> statement-breakpoint")
@@ -90,17 +98,40 @@ describe("migrating a database that already has rows", () => {
     return { client, finish };
   }
 
-  /** Rows that look like a real pilot. Valid under every schema version. */
+  /**
+   * A row in every table, which is the point.
+   *
+   * This used to populate parties, swaps and commitments only, so a NOT NULL
+   * column added to any of the other seven passed the test and then aborted
+   * the deploy. swap_access in particular holds two rows per swap in
+   * production and had none here.
+   */
   const PILOT = `
-    insert into parties (id, name, kind) values
-      ('11111111-1111-4111-8111-111111111111', 'Clinic Scheduler', 'app'),
-      ('22222222-2222-4222-8222-222222222222', 'Practice Manager Weekly', 'newsletter');
-    insert into swaps (id, title, status, party_a_id, party_b_id) values
+    insert into parties (id, name, kind, email) values
+      ('11111111-1111-4111-8111-111111111111', 'Clinic Scheduler', 'app', 'founder@example.com'),
+      ('22222222-2222-4222-8222-222222222222', 'Practice Manager Weekly', 'newsletter', null);
+    insert into swaps (id, title, status, party_a_id, party_b_id, proposed_at, accepted_at) values
       ('33333333-3333-4333-8333-333333333333', 'A swap', 'accepted',
-       '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222');
+       '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', now(), now());
     insert into commitments (id, swap_id, side, description, due_date, status) values
       ('44444444-4444-4444-8444-444444444444', '33333333-3333-4333-8333-333333333333',
-       'a', 'Something', '2026-10-20', 'pending');
+       'a', 'Something', '2026-10-20', 'pending'),
+      ('44444444-4444-4444-8444-444444444445', '33333333-3333-4333-8333-333333333333',
+       'b', 'Something else', '2026-10-21', 'delivered');
+    insert into swap_access (token, swap_id, side, last_viewed_at) values
+      ('tokenAAAAAAAAAAAAAAAAAAA', '33333333-3333-4333-8333-333333333333', 'a', now()),
+      ('tokenBBBBBBBBBBBBBBBBBBB', '33333333-3333-4333-8333-333333333333', 'b', null);
+    insert into responses (swap_id, side, decision, message, email) values
+      ('33333333-3333-4333-8333-333333333333', 'b', 'accept', 'Sounds good', 'sam@example.com');
+    insert into tracking_links (code, swap_id, side, label, destination_url, clicks) values
+      ('abc2345', '33333333-3333-4333-8333-333333333333', 'b', 'Next issue', 'https://example.com/', 7);
+    insert into events (swap_id, type, side, detail) values
+      ('33333333-3333-4333-8333-333333333333', 'created', null, null),
+      ('33333333-3333-4333-8333-333333333333', 'accept', 'b', 'Sounds good');
+    insert into reminders_sent (commitment_id, kind) values
+      ('44444444-4444-4444-8444-444444444444', '3d');
+    insert into party_access (token, party_id) values
+      ('tokenPPPPPPPPPPPPPPPPPPP', '22222222-2222-4222-8222-222222222222');
   `;
 
   it("applies the newest migration on top of representative rows", async () => {

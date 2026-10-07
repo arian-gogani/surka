@@ -124,9 +124,9 @@ async function waitForServer() {
 async function run() {
   console.log("Public pages");
   const home = await get("/");
-  check(home.status === 200 && home.html.includes("Partner swaps that actually happen"), "landing page renders");
+  check(home.status === 200 && visible(home.html).includes("Partner swaps that actually happen"), "landing page renders");
   const partners = await get("/partners");
-  check(partners.status === 200 && partners.html.includes("Nobody is listed yet"), "empty partner list renders");
+  check(partners.status === 200 && visible(partners.html).includes("Nobody is listed yet"), "empty partner list renders");
   check((await get("/list")).status === 200, "the public listing form renders");
   check((await get("/p/not-a-real-token")).status === 404, "an unknown listing link is a 404");
   check((await get("/d/not-a-real-token")).status === 404, "unknown swap link is a 404");
@@ -191,7 +191,7 @@ async function run() {
   check(/isn(&#x27;|')t ready yet/.test(draftView), "partner can't see a draft");
   await submit(swapPath, "Mark as sent", {});
   const partnerPage = await get(`/d/${partnerToken}`);
-  check(partnerPage.html.includes("wants to swap with you"), "partner sees the proposal");
+  check(visible(partnerPage.html).includes("wants to swap with you"), "partner sees the proposal");
 
   const counterless = await submit(`/d/${partnerToken}`, 'name="message"', { token: partnerToken, decision: "counter" });
   check(query(counterless.location, "error")?.includes("rework the terms") ?? false, "a counter needs a message");
@@ -209,7 +209,10 @@ async function run() {
     label: "Next issue",
     destinationUrl: "https://clinicscheduler.example/?ref=pmw",
   });
-  check(linkMade.location.includes("error=") === false, "operator creates a tracking link");
+  check(
+    linkMade.location.startsWith(swapPath) && !linkMade.location.includes("error="),
+    "operator creates a tracking link",
+  );
   const code = (await get(swapPath)).html.match(/\/r\/([2-9a-zA-Z]{7})/)?.[1];
   const redirect = await get(`/r/${code}`);
   check(redirect.status === 302 && redirect.location === "https://clinicscheduler.example/?ref=pmw", "tracking link redirects");
@@ -239,7 +242,7 @@ async function run() {
     await submit(swapPath, `value="${id}"`, { outcome: "kept" });
   }
   const finished = await get(`/d/${partnerToken}`);
-  check(finished.html.includes("This swap is complete"), "swap completes when everything is checked");
+  check(visible(finished.html).includes("This swap is complete"), "swap completes when everything is checked");
 
   console.log("The partner list, and proposing from it");
   // The swap link is shared with the counterparty by design, so it cannot be
@@ -266,24 +269,31 @@ async function run() {
     needs: "A scheduling tool my readers would use daily",
   });
   check(query(listed.location, "ok")?.includes("Saved") ?? false, "partner asks to be listed");
-  check(!(await get("/partners")).html.includes("Practice Manager Weekly"), "asking is not appearing");
+  const askedNotShown = await get("/partners");
+  check(
+    askedNotShown.status === 200 && !askedNotShown.html.includes("Practice Manager Weekly"),
+    "asking is not appearing",
+  );
 
   const pendingPage = await get("/admin/listings");
   const pendingId = pendingPage.html.match(/name="partyId" value="([0-9a-f-]{36})"/)?.[1];
   await submit("/admin/listings", 'name="partyId"', { partyId: pendingId });
 
   const list = await get("/partners");
-  check(list.html.includes("Practice Manager Weekly"), "the list shows the business");
-  check(list.html.includes("9,000 practice managers"), "the list shows what it offers");
+  check(visible(list.html).includes("Practice Manager Weekly"), "the list shows the business");
+  check(visible(list.html).includes("9,000 practice managers"), "the list shows what it offers");
   // The whole reason the page is worth reading: the record beside the name.
-  check(list.html.includes("Kept 1 of 1 commitment"), "the list shows the kept record");
-  check(!list.html.includes("sam@pmweekly.example"), "the list never publishes an email");
+  check(visible(list.html).includes("Kept 1 of 1 commitment"), "the list shows the kept record");
+    check(
+    list.status === 200 && !list.html.includes("sam@pmweekly.example"),
+    "the list never publishes an email",
+  );
 
   const listedId = list.html.match(/\/start\?with=([0-9a-f-]{36})/)?.[1];
   check(Boolean(listedId), "the list offers a way to propose");
   const aimed = await get(`/start?with=${listedId}`);
-  check(aimed.html.includes("Propose a swap to Practice Manager Weekly"), "proposing from the list names them");
-  check(aimed.html.includes("readers would use daily"), "proposing from the list shows what they want");
+  check(visible(aimed.html).includes("Propose a swap to Practice Manager Weekly"), "proposing from the list names them");
+  check(visible(aimed.html).includes("readers would use daily"), "proposing from the list shows what they want");
 
   const fromList = await submit(`/start?with=${listedId}`, 'name="partnerGive"', {
     with: listedId,
@@ -351,15 +361,23 @@ async function run() {
   check(/^\/p\/[A-Za-z0-9_-]{24}$/.test(managePath), "listing mints a private link and lands on it");
 
   const manage = await get(managePath);
-  check(manage.html.includes("Receipt Butler"), "the private link opens the listing");
-  check(manage.html.includes("No swaps through Surka yet"), "a brand new listing says it has no record");
+  check(visible(manage.html).includes("Receipt Butler"), "the private link opens the listing");
+  check(visible(manage.html).includes("No swaps through Surka yet"), "a brand new listing says it has no record");
   // Nothing verifies the name typed into that form, and the directory is an
   // indexable page, so a person reads it before a stranger can.
-  check(!(await get("/partners")).html.includes("Receipt Butler"), "a new listing is not public on submit");
+  const beforeApproval = await get("/partners");
+  check(
+    // The control is a business already approved earlier in this run, so the
+    // absence below means "not listed" rather than "page failed to render".
+    beforeApproval.status === 200 &&
+      visible(beforeApproval.html).includes("Practice Manager Weekly") &&
+      !beforeApproval.html.includes("Receipt Butler"),
+    "a new listing is not public on submit",
+  );
   check(visible(manage.html).includes("by hand before it goes public"), "the holder is told it is being read");
 
   const queue = await get("/admin/listings");
-  check(queue.html.includes("1 waiting on you"), "the operator sees the request");
+  check(visible(queue.html).includes("1 waiting on you"), "the operator sees the request");
   const waitingId = queue.html.match(/name="partyId" value="([0-9a-f-]{36})"/)?.[1];
   const approved = await submit("/admin/listings", 'name="partyId"', { partyId: waitingId });
   check(query(approved.location, "ok")?.includes("public partner list") ?? false, "the operator approves it");
@@ -371,7 +389,11 @@ async function run() {
     needs: "A billing or scheduling tool my users would pay for",
   });
   check(query(removed.location, "ok")?.includes("Removed") ?? false, "the holder can take the listing down");
-  check(!(await get("/partners")).html.includes("Receipt Butler"), "a removed listing leaves the public list");
+  const afterRemoval = await get("/partners");
+  check(
+    afterRemoval.status === 200 && !afterRemoval.html.includes("Receipt Butler"),
+    "a removed listing leaves the public list",
+  );
   // Delisting is not deleting: the link has to still work or they can never return.
   check((await get(managePath)).status === 200, "the private link still works after removal");
 
@@ -392,7 +414,7 @@ async function run() {
   check(query(relisted.location, "ok")?.includes("Saved") ?? false, "the holder can ask to go back on");
 
   const moderation = await get("/admin/listings");
-  check(moderation.html.includes("Receipt Butler"), "the operator sees every listing");
+  check(visible(moderation.html).includes("Receipt Butler"), "the operator sees every listing");
   // Back in the queue after re-requesting, so approve it before taking it off.
   const requeuedId = moderation.html.match(/name="partyId" value="([0-9a-f-]{36})"/)?.[1];
   await submit("/admin/listings", "Put it on the list", { partyId: requeuedId });
@@ -400,15 +422,60 @@ async function run() {
   // carry a partyId, so a field marker picks whichever comes first.
   const tookDown = await submit("/admin/listings", "Take off the list", { partyId: requeuedId });
   check(query(tookDown.location, "ok")?.includes("Taken off") ?? false, "the operator can take a listing down");
-  check(!(await get("/partners")).html.includes("Receipt Butler"), "a moderated listing leaves the public page");
+  const afterTakedown = await get("/partners");
+  check(
+    afterTakedown.status === 200 && !afterTakedown.html.includes("Receipt Butler"),
+    "a moderated listing leaves the public page",
+  );
   // A public form anyone can post to needs a remedy that is not destructive.
   check((await get(managePath)).status === 200, "a moderated business keeps its own link");
 
   console.log("Reminders");
   const cronDenied = await fetch(BASE + "/api/cron/reminders");
   check(cronDenied.status === 401, "reminder cron needs its secret");
+
+  // Nothing in the run above is ever inside a reminder window, so the only
+  // thing the next call proved was the bearer check: a wrong window, an empty
+  // query, or dueReminderKind always returning null all left it green. This
+  // swap is genuinely due, which is the only shape that tests the query.
+  const soon = new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 10);
+  const dueSwap = await submit("/admin/swaps/new", 'name="partyAId"', {
+    title: "Due in two days",
+    partyAId: idFor("Clinic Scheduler"),
+    partyBId: idFor("Practice Manager Weekly"),
+    "commitments.0.side": "a",
+    "commitments.0.description": "Something due very soon",
+    "commitments.0.dueDate": soon,
+    "commitments.1.side": "b",
+    "commitments.1.description": "Something else due very soon",
+    "commitments.1.dueDate": soon,
+  });
+  const duePath = new URL(dueSwap.location, BASE).pathname;
+  await submit(duePath, "Mark as sent", {});
+  const dueTokens = [
+    ...new Set([...(await get(duePath)).html.matchAll(/\/d\/([A-Za-z0-9_-]{24})/g)].map((m) => m[1])),
+  ];
+  const accepted2 = await submit(`/d/${dueTokens[0]}`, 'name="message"', {
+    token: dueTokens[0],
+    decision: "accept",
+    email: "sam@pmweekly.example",
+  });
+  check(query(accepted2.location, "ok")?.startsWith("Swap accepted") ?? false, "a swap due in two days is agreed");
+
   const cron = await fetch(BASE + "/api/cron/reminders", { headers: { authorization: `Bearer ${ENV.CRON_SECRET}` } });
-  check(cron.ok, "reminder cron runs with its secret");
+  const run = await cron.json();
+  // No RESEND_API_KEY in this environment, so nothing can be delivered. The
+  // run must find the due reminders and refuse to record them, rather than
+  // booking them as sent and burning the window for good.
+  check(run.undeliverable >= 1, "the cron finds a reminder that is actually due");
+  check(run.sent === 0 && run.provider === "log", "it sends nothing when nothing can deliver");
+  check(cron.status === 503, "and says so loudly rather than reporting success");
+
+  const again2 = await fetch(BASE + "/api/cron/reminders", {
+    headers: { authorization: `Bearer ${ENV.CRON_SECRET}` },
+  });
+  const rerun = await again2.json();
+  check(rerun.undeliverable >= 1, "the reminder is still due on the next run, not consumed");
 }
 
 const dataDir = mkdtempSync(path.join(tmpdir(), "surka-smoke-"));

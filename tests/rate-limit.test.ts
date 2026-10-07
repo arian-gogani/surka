@@ -79,7 +79,13 @@ describe("client key", () => {
   });
 });
 
-describe("constant time compare", () => {
+/**
+ * Correctness only. No unit test can demonstrate constant time: replacing the
+ * body with `a === b` leaves all of these green, and the name used to imply
+ * otherwise. The timing property is a property of the implementation, and it
+ * is documented where the implementation is.
+ */
+describe("secret comparison", () => {
   it("matches identical secrets", () => {
     expect(constantTimeEquals("Bearer abc123", "Bearer abc123")).toBe(true);
   });

@@ -76,7 +76,12 @@ describe("a rejected submit keeps what was typed", () => {
     })) form.set(key, value);
 
     const state = await startSwapAction(EMPTY_START, form);
-    expect(state.error).toBeTruthy();
+    // The message, not merely "some error". Asserting truthiness passed when
+    // the rate limiter refused the submit, and when a bad date reached
+    // Postgres and raised a generic failure, neither of which is what this
+    // test names.
+    expect(state.error).toContain("Their side");
+    expect(state.error).toContain("due date");
     // Everything they typed comes back, including the eight good fields.
     expect(state.values.title).toBe("A swap worth keeping");
     expect(state.values.yourGive).toBe("A dedicated placement in our next issue");
