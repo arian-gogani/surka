@@ -10,6 +10,14 @@ export interface PilotMetrics {
   onTimeRate: number | null;
   keptCommitments: number;
   checkedCommitments: number;
+  /**
+   * Kept commitments that beat their deadline.
+   *
+   * The Phase 0 gate is written in on-time delivery, and onTimeRate was never
+   * that: it counted kept whenever it was checked, so a delivery three months
+   * late lifted it. deliveredAt was compared to dueDate nowhere.
+   */
+  onTimeCommitments: number;
   /** Accepted ÷ answered proposals. */
   acceptanceRate: number | null;
   /** Average operator minutes, over completed swaps where time was logged. */
@@ -63,6 +71,7 @@ export async function pilotMetrics(db: Db, now = new Date()): Promise<PilotMetri
     statusRows,
     weekRows,
     commitmentRows,
+    onTimeRows,
     minutesRows,
     partyRows,
     fullyKeptRows,
@@ -82,6 +91,18 @@ export async function pilotMetrics(db: Db, now = new Date()): Promise<PilotMetri
       .from(commitments)
       .where(inArray(commitments.status, ["kept", "missed"]))
       .groupBy(commitments.status),
+    // Compared as whole days, like every other deadline here, so a delivery on
+    // the due date counts however late in the day it landed.
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(commitments)
+      .where(
+        and(
+          eq(commitments.status, "kept"),
+          isNotNull(commitments.deliveredAt),
+          sql`(${commitments.deliveredAt} at time zone 'UTC')::date <= ${commitments.dueDate}`,
+        ),
+      ),
     db
       // Only swaps where time was actually logged. operatorMinutes defaults to
       // zero, so averaging over all completed swaps counted every swap the
@@ -175,6 +196,7 @@ export async function pilotMetrics(db: Db, now = new Date()): Promise<PilotMetri
     onTimeRate: checked === 0 ? null : kept / checked,
     keptCommitments: kept,
     checkedCommitments: checked,
+    onTimeCommitments: onTimeRows[0]?.n ?? 0,
     acceptanceRate: answered === 0 ? null : accepted / answered,
     minutesPerCompletedSwap: minutesRows[0]?.avg ?? null,
     swapsWithTimeLogged: minutesRows[0]?.logged ?? 0,

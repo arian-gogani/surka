@@ -996,11 +996,35 @@ describe("pilot metrics", () => {
     expect(m.swapsByStatus.completed).toBe(1);
     expect(m.completedThisWeek).toBe(1);
     expect(m.onTimeRate).toBe(1);
+    // Nothing was marked delivered in this swap, so nothing can be on time:
+    // "kept" and "kept on time" are different claims and the gate is the
+    // second one.
+    expect(m.onTimeCommitments).toBe(0);
     expect(m.acceptanceRate).toBe(1);
     expect(m.minutesPerCompletedSwap).toBe(45);
     expect(m.swapsWithTimeLogged).toBe(1);
     expect(m.repeatParties).toBe(0);
     expect(m.resultTotals.installs).toBe(15);
+  });
+
+  it("counts a delivery as on time only if it beat the deadline", async () => {
+    const { swap, tokens } = await seedSwap();
+    await markProposed(db, swap.id, NOW);
+    await respond(db, tokens.b, { decision: "accept" }, NOW);
+    const view = await getSwapForToken(db, tokens.a, NOW);
+    // seedSwap: side A is due 2026-10-05, side B 2026-10-17.
+    const early = view.commitments.find((c) => c.side === "a")!;
+    const late = view.commitments.find((c) => c.side === "b")!;
+
+    await markDelivered(db, tokens.a, early.id, { proofUrl: "https://a.example/x" }, new Date("2026-10-05T23:00:00Z"));
+    await markDelivered(db, tokens.b, late.id, { proofUrl: "https://b.example/x" }, new Date("2026-10-25T09:00:00Z"));
+    await verifyCommitment(db, early.id, "kept", NOW);
+    await verifyCommitment(db, late.id, "kept", NOW);
+
+    const m = await pilotMetrics(db, NOW);
+    expect(m.keptCommitments).toBe(2);
+    // Same day counts, however late in the day. Eight days over does not.
+    expect(m.onTimeCommitments).toBe(1);
   });
 
   it("refuses a time log that is obviously a typo", async () => {
