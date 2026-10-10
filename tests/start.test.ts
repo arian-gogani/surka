@@ -23,6 +23,16 @@ beforeEach(async () => {
   await db.execute(sql`truncate parties, swaps, commitments, swap_access, responses, tracking_links, results, events, reminders_sent cascade`);
 });
 
+/**
+ * Far enough ahead to clear the public form's floor on past deadlines, which
+ * is checked against the real clock. The reminder assertion below uses its own
+ * fixed clock, so it sets RUN_AT relative to this rather than the other way
+ * round: a hardcoded date here rots the moment it passes.
+ */
+const SOON = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+/** 15:00 UTC on the day the 3-day window opens for SOON. */
+const RUN_AT = new Date(`${new Date(Date.now()).toISOString().slice(0, 10)}T15:00:00Z`);
+
 describe("public swap start", () => {
   it("lets the creator provide an optional reminder email", async () => {
     const form = new FormData();
@@ -35,8 +45,8 @@ describe("public swap start", () => {
       partnerKind: "newsletter",
       yourGive: "A dedicated placement in our next issue",
       partnerGive: "A dedicated placement in their next issue",
-      yourDue: "2026-10-08",
-      partnerDue: "2026-10-08",
+      yourDue: SOON,
+      partnerDue: SOON,
     })) form.set(key, value);
 
     let target = "";
@@ -51,9 +61,9 @@ describe("public swap start", () => {
     const view = await getSwapForToken(db, a);
     expect(view.partyA.email).toBe("editor@first.example");
 
-    await respond(db, b, { decision: "accept" }, new Date("2026-10-05T15:00:00Z"));
+    await respond(db, b, { decision: "accept" }, RUN_AT);
     const sent: string[] = [];
-    const run = await runReminders(db, async (message) => { sent.push(message.to); }, new Date("2026-10-05T15:00:00Z"));
+    const run = await runReminders(db, async (message) => { sent.push(message.to); }, RUN_AT);
     expect(run).toMatchObject({ sent: 1, skipped: 1, failed: 0 });
     expect(sent).toEqual(["editor@first.example"]);
   });
@@ -67,7 +77,7 @@ describe("a rejected submit keeps what was typed", () => {
       yourName: "First Weekly",
       yourKind: "newsletter",
       yourGive: "A dedicated placement in our next issue",
-      yourDue: "2026-10-08",
+      yourDue: SOON,
       partnerName: "Second Weekly",
       partnerKind: "newsletter",
       partnerGive: "A dedicated placement in their next issue",
@@ -100,7 +110,7 @@ describe("a rejected submit leaves nothing behind", () => {
       title: "A swap that will be rejected",
       yourName: "Orphan One",
       yourGive: "Something real",
-      yourDue: "2026-10-08",
+      yourDue: SOON,
       partnerName: "Orphan Two",
       partnerGive: "Something real",
       partnerDue: "not-a-date",

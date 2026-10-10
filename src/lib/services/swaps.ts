@@ -1211,7 +1211,13 @@ export async function recordClick(db: Db, code: string): Promise<string | null> 
  */
 export async function addResult(db: Db, swapId: string, input: unknown, now = new Date()): Promise<Result> {
   const values = parse(resultInput, input);
-  await requireSwap(db, swapId);
+  const swap = await requireSwap(db, swapId);
+  // The same gate reportResult has. Without it the operator could write a
+  // figure into a draft or cancelled swap, where neither deal sheet renders
+  // results, so it existed and was invisible to both sides.
+  if (swap.status !== "accepted" && swap.status !== "completed") {
+    throw new SurkaError("Results open once both sides have agreed to the swap.", "conflict");
+  }
   const [row] = await db
     .insert(results)
     .values({ ...values, swapId })

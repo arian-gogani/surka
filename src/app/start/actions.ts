@@ -6,6 +6,7 @@ import { getDb } from "@/db/client";
 import { messageFor, SurkaError } from "@/lib/errors";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { createParty, createSwap, getListing, getParty, partyForToken, updatePartyIdentity } from "@/lib/services/swaps";
+import { toDateOnly } from "@/lib/dates";
 import { commitmentInput, firstIssue, swapTitle } from "@/lib/validation";
 import { START_FIELDS, type StartField, type StartState } from "./state";
 
@@ -40,7 +41,17 @@ export async function startSwapAction(_previous: StartState, formData: FormData)
     { side: "a", description: field("yourGive"), dueDate: field("yourDue") },
     { side: "b", description: field("partnerGive"), dueDate: field("partnerDue") },
   ];
+  const today = toDateOnly(new Date());
   for (const term of terms) {
+    // The min attribute on the date inputs is client-side only, so a back
+    // dated deadline reached the database and the first email that swap ever
+    // sent was "Overdue: your part of ...". Floored here rather than in
+    // commitmentInput, because the operator legitimately records swaps that
+    // already ran.
+    if (term.dueDate && term.dueDate < today) {
+      const side = term.side === "a" ? "Your" : "Their";
+      return fail(`${side} deadline has already passed. Pick a date from today onward.`);
+    }
     const parsed = commitmentInput.safeParse(term);
     // Name the side. "Describe what will be delivered" and "Pick a due date"
     // apply equally to both halves of this form, so the bare message left

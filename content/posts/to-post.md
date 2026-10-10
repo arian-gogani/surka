@@ -2,13 +2,13 @@
 
 Drafts only. Nothing here has been sent and nothing will be: posting is yours.
 
-**Facts these drafts rely on, verified 2026-10-07:**
+**Facts these drafts rely on, verified 2026-10-10:**
 
 - Live: https://surka.vercel.app
 - Source: https://github.com/arian-gogani/surka (public, AGPL-3.0, 0 stars)
 - Zero listings, zero users, no swap has ever run end to end with real people
 - Email delivery is not configured, so no reminder has ever been sent
-- 136 tests, ~7,400 lines of TypeScript under `src/`
+- 143 tests, ~7,500 lines of TypeScript under `src/`
 
 **Do not claim** users, traction, waitlist numbers, or that reminders work.
 Every draft is written to be true today. If you edit one, keep it true.
@@ -18,7 +18,7 @@ Every draft is written to be true today. If you edit one, keep it true.
 ## The objection you will get in the first comment
 
 A channel research pass found this, and it changes what the posts should lead
-with. Verified dates:
+with. Dates below are the sources' own:
 
 - **SwapStack**, the closest predecessor, was **acquired by beehiiv**
   (beehiiv's own blog, 2023-09-26). `swapstack.co` is a stale shell.
