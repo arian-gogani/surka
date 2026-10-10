@@ -1,4 +1,5 @@
 import { getDb } from "@/db/client";
+import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { destinationFor, recordClick } from "@/lib/services/swaps";
 
 export const dynamic = "force-dynamic";
@@ -40,12 +41,27 @@ function isRealVisit(request: Request): boolean {
   return !purpose.toLowerCase().includes("prefetch");
 }
 
+/**
+ * How often one address may add to one code's count.
+ *
+ * These codes are printed in newsletters, so the request rate is set by
+ * strangers, and the count is the number both founders use to decide whether
+ * to swap again. A loop could run it to any figure. Thirty an hour is far
+ * above a person rereading an issue and far below anything useful to inflate.
+ * The visitor is always redirected either way: refusing to forward somebody
+ * because a counter is full would break the placement to protect a statistic.
+ */
+const CLICK_LIMIT = 30;
+const CLICK_WINDOW_MS = 60 * 60 * 1000;
+
 /** Tracking redirect: counts the click, then sends the visitor on. */
 export async function GET(request: Request, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
   if (!CODE.test(code)) return missing();
   const db = await getDb();
-  const destination = isRealVisit(request) ? await recordClick(db, code) : await destinationFor(db, code);
+  const metered = rateLimit(`click:${code}:${clientKey(request.headers)}`, CLICK_LIMIT, CLICK_WINDOW_MS);
+  const destination =
+    isRealVisit(request) && metered.ok ? await recordClick(db, code) : await destinationFor(db, code);
   if (!destination || !safe(destination)) return missing();
   return send(destination);
 }

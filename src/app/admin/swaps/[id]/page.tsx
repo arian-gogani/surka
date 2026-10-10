@@ -9,6 +9,7 @@ import { getDb } from "@/db/client";
 import type { Side } from "@/db/schema";
 import { daysUntil, formatDate, formatShortDate, relativeDue, toDateOnly } from "@/lib/dates";
 import { appUrl } from "@/lib/env";
+import { EVENT_LABEL, type SwapEventType } from "@/lib/events";
 import { SurkaError } from "@/lib/errors";
 import { getSwapDetail, type SwapDetail } from "@/lib/services/swaps";
 import { possessive } from "@/lib/present";
@@ -27,25 +28,6 @@ import {
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Swap", robots: { index: false } };
 
-const EVENT_LABEL: Record<string, string> = {
-  created: "Swap created",
-  proposed: "Sent to the partner",
-  viewed: "Opened their link",
-  accept: "Accepted the swap",
-  counter: "Suggested changes",
-  decline: "Declined",
-  terms_updated: "Terms updated",
-  delivered: "Marked delivered",
-  kept: "Checked as kept",
-  missed: "Checked as missed",
-  reopened: "Reopened for checking",
-  completed: "Swap completed",
-  cancelled: "Swap cancelled",
-  link_created: "Tracking link created",
-  link_retired: "Tracking link retired",
-  result_added: "Result reported",
-  time_logged: "Time logged",
-};
 
 const STAMP = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -386,7 +368,7 @@ export default async function SwapAdminPage({
                 <span className="num text-muted">{STAMP.format(e.createdAt)}</span>
                 <span>
                   {e.side ? <span className="font-medium">{name(e.side)}: </span> : null}
-                  {EVENT_LABEL[e.type] ?? e.type}
+                  {EVENT_LABEL[e.type as SwapEventType] ?? e.type}
                   {e.detail ? <span className="text-muted"> ({e.detail})</span> : null}
                 </span>
               </li>

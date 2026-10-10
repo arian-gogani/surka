@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, notInArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, exists, gt, inArray, isNotNull, isNull, notInArray, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { z } from "zod";
 import type { Db } from "@/db/client";
@@ -29,6 +29,7 @@ import {
   type TrackingLink,
 } from "@/db/schema";
 import { contactEmail } from "../env";
+import type { SwapEventType } from "../events";
 import { SurkaError } from "../errors";
 import { newAccessToken, newTrackingCode } from "../ids";
 import { type CheckedCommitment, computeRecord, NO_RECORD, type TrackRecord } from "../reputation";
@@ -64,7 +65,7 @@ function parse<T extends z.ZodType>(schema: T, input: unknown): z.output<T> {
 async function logEvent(
   db: Db,
   swapId: string,
-  type: string,
+  type: SwapEventType,
   options: { side?: Side; detail?: string } = {},
 ): Promise<void> {
   await db.insert(events).values({
@@ -1023,6 +1024,13 @@ export async function withdrawCommitment(
   if (commitment.side !== access.side) {
     throw new SurkaError("You can only do this for what you agreed to deliver.", "not_allowed");
   }
+  // The gate every sibling has and this one forgot. pending is the default in
+  // every swap status, so without it a token for a draft, declined or
+  // cancelled swap could write a call-off and 500 characters of note onto the
+  // operator's screen for a swap nobody ever agreed to.
+  if (swap.status !== "accepted") {
+    throw new SurkaError("This only applies once both sides have agreed to the swap.", "conflict");
+  }
   if (commitment.status !== "pending") {
     throw new SurkaError(
       commitment.status === "delivered"
@@ -1033,10 +1041,18 @@ export async function withdrawCommitment(
   }
 
   const reason = parse(withdrawInput, { note }).note;
-  await db
+  // Guard on the status we read, like markDelivered and verifyCommitment. A
+  // call-off racing a delivery would otherwise win after markDelivered had
+  // cleared these fields, putting "called off" back onto a row that now has a
+  // proof link, which is the contradiction markDelivered exists to prevent.
+  const [changed] = await db
     .update(commitments)
     .set({ withdrawnAt: commitment.withdrawnAt ?? now, withdrawnNote: reason })
-    .where(eq(commitments.id, commitment.id));
+    .where(and(eq(commitments.id, commitment.id), eq(commitments.status, commitment.status)))
+    .returning({ id: commitments.id });
+  if (!changed) {
+    throw new SurkaError("Someone else just changed this one. Reload the page and try again.", "conflict");
+  }
   await logEvent(db, swap.id, "withdrawn", {
     side: access.side,
     detail: reason ? `${commitment.description}: ${reason}` : commitment.description,
@@ -1192,7 +1208,15 @@ export async function verifyCommitment(
     // telling the operator the first one succeeded.
     const [changed] = await tx
       .update(commitments)
-      .set({ status: outcome, verifiedAt: outcome === "pending" ? null : now })
+      .set({
+        status: outcome,
+        verifiedAt: outcome === "pending" ? null : now,
+        // A verdict supersedes a call-off. Leaving it would put "called off"
+        // next to "Kept" on the page both sides read, the same contradiction
+        // markDelivered clears.
+        withdrawnAt: null,
+        withdrawnNote: null,
+      })
       .where(and(eq(commitments.id, commitment.id), eq(commitments.status, commitment.status)))
       .returning({ id: commitments.id });
     if (!changed) throw new SurkaError("That commitment has already been checked.", "conflict");
@@ -1294,11 +1318,21 @@ function liveLink(db: Db, code: string) {
   return and(
     eq(trackingLinks.code, code),
     isNull(trackingLinks.retiredAt),
-    // A subquery rather than a join, because recordClick is an update and has
-    // to express the same condition in a single statement.
-    inArray(
-      trackingLinks.swapId,
-      db.select({ id: swaps.id }).from(swaps).where(notInArray(swaps.status, CALLED_OFF)),
+    /*
+     * Correlated EXISTS, not IN over a subquery.
+     *
+     * A subquery rather than a join, because recordClick is an update and has
+     * to express the same condition in one statement. But the first version
+     * was uncorrelated and the predicate was a negation, so swaps_status_idx
+     * could not serve it and Postgres materialised every live swap id on every
+     * click. This probes the primary key instead, and these codes are printed
+     * in newsletters, so the per-click cost is set by strangers.
+     */
+    exists(
+      db
+        .select({ one: sql`1` })
+        .from(swaps)
+        .where(and(eq(swaps.id, trackingLinks.swapId), notInArray(swaps.status, CALLED_OFF))),
     ),
   );
 }

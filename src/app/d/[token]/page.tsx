@@ -675,22 +675,18 @@ function CommitmentRow({ c, now, children }: { c: Commitment; now: Date; childre
         <p className="max-w-prose text-[0.9375rem] leading-snug">{c.description}</p>
         <CommitmentState status={c.status} />
       </div>
+      {/*
+        These two annotations are siblings of the due-date paragraph, not
+        children of it. They were written inside it, and a browser auto-closes
+        a p on meeting another p, so the server HTML did not match the tree
+        React builds: a hydration mismatch, and the proof link ended up outside
+        the sentence it was written to join. The operator's page had the same
+        information correctly as siblings, which is what gave it away.
+      */}
       <p className="num mt-1 text-[0.8125rem] text-muted">
         Due {formatDate(c.dueDate)}
         {c.status === "pending" ? ` (${relativeDue(c.dueDate, now)})` : ""}
-        {c.withdrawnAt ? (
-        <p className="mt-1 text-[0.8125rem] text-spark-deep">
-          Called off by the side that owed it.{c.withdrawnNote ? ` "${c.withdrawnNote}"` : ""}
-        </p>
-      ) : null}
-      {c.confirmedSaid ? (
-        <p className="mt-1 text-[0.8125rem] text-muted">
-          {c.confirmedSaid === "arrived"
-            ? "Confirmed by the other side."
-            : "The other side says they didn't see it. We're checking the proof."}
-        </p>
-      ) : null}
-      {c.proofUrl ? (
+        {c.proofUrl ? (
           <>
             {", "}
             {/* Every proof link read just "proof", so a screen reader's links
@@ -707,6 +703,18 @@ function CommitmentRow({ c, now, children }: { c: Commitment; now: Date; childre
           </>
         ) : null}
       </p>
+      {c.withdrawnAt ? (
+        <p className="mt-1 text-[0.8125rem] text-spark-deep">
+          Called off by the side that owed it.{c.withdrawnNote ? ` "${c.withdrawnNote}"` : ""}
+        </p>
+      ) : null}
+      {c.confirmedSaid ? (
+        <p className="mt-1 text-[0.8125rem] text-muted">
+          {c.confirmedSaid === "arrived"
+            ? "Confirmed by the other side."
+            : "The other side says they didn't see it. We're checking the proof."}
+        </p>
+      ) : null}
       {children}
     </li>
   );

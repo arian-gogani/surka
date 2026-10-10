@@ -311,6 +311,33 @@ describe("delivery and checking", () => {
     expect(after?.calledOff).toBe(1);
   });
 
+  it("will not let a side call off a commitment on a swap nobody agreed to", async () => {
+    // pending is the default in every swap status, so without a swap-level
+    // gate a token for a draft, declined or cancelled swap could write a
+    // call-off and a note onto the operator's screen for a swap that never ran.
+    const seeded = await seedSwap();
+    const first = seeded.commitments?.[0]?.id ?? (await getSwapDetail(db, seeded.swap.id)).commitments[0]!.id;
+    await expectSurka(withdrawCommitment(db, seeded.tokens.a, first, null, NOW), "conflict");
+
+    await markProposed(db, seeded.swap.id, NOW);
+    await expectSurka(withdrawCommitment(db, seeded.tokens.a, first, null, NOW), "conflict");
+
+    await respond(db, seeded.tokens.b, { decision: "decline" }, NOW);
+    await expectSurka(withdrawCommitment(db, seeded.tokens.a, first, null, NOW), "conflict");
+  });
+
+  it("drops a call-off when the operator records a verdict", async () => {
+    // Otherwise the row reads "called off" next to "Kept", the same
+    // contradiction marking it delivered exists to clear.
+    const { tokens, mine } = await acceptedSwap();
+    await withdrawCommitment(db, tokens.a, mine.id, "Not happening.", NOW);
+    await verifyCommitment(db, mine.id, "missed", NOW);
+
+    const after = (await getSwapForToken(db, tokens.b, NOW)).commitments.find((c) => c.id === mine.id);
+    expect(after?.status).toBe("missed");
+    expect(after?.withdrawnAt).toBeNull();
+  });
+
   it("will not let a side call off something it already delivered", async () => {
     const { tokens, mine } = await acceptedSwap();
     await markDelivered(db, tokens.a, mine.id, { proofUrl: "https://a.example/x" }, NOW);

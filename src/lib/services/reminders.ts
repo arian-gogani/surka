@@ -15,6 +15,7 @@ import {
 import { addDays, formatDate, relativeDue, toDateOnly } from "../dates";
 import type { EmailProvider, EmailSender } from "../email";
 import { appUrl } from "../env";
+import type { SwapEventType } from "../events";
 import { dueReminderKind, reminderSubject } from "../reminders";
 
 /** Emails one run may send. Keeps a run bounded so it cannot die partway. */
@@ -199,7 +200,8 @@ function messageFor(
 }
 
 async function logReminderEvent(db: Db, swapId: string, side: Side, kind: ReminderKind): Promise<void> {
-  await db.insert(events).values({ swapId, type: "reminder_sent", side, detail: kind });
+  const type: SwapEventType = "reminder_sent";
+  await db.insert(events).values({ swapId, type, side, detail: kind });
 }
 
 /** The other side of the swap, for the half of the message that is the reason to act. */

@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { EVENT_LABEL } from "@/lib/events";
 import { addDays, daysUntil, isValidDateOnly } from "@/lib/dates";
 import { appUrl } from "@/lib/env";
 import { computeRecord, describeRecord } from "@/lib/reputation";
@@ -313,5 +314,17 @@ describe("terms stay editable until both sides agree", () => {
     // must gate the cancel form on the transition rather than on finality.
     expect(isFinal("completed")).toBe(false);
     expect(canTransition("completed", "cancelled")).toBe(false);
+  });
+});
+
+describe("the operator's timeline is complete", () => {
+  it("labels every event type, enforced by the compiler", () => {
+    // SwapEventType is a union and EVENT_LABEL is a Record over it, so an
+    // unlabelled type does not build. This asserts the map is not empty and
+    // that nothing reads back as a raw key, which is all that is left to
+    // check at runtime.
+    const labels = Object.values(EVENT_LABEL);
+    expect(labels.length).toBeGreaterThan(15);
+    for (const label of labels) expect(label).not.toMatch(/^[a-z_]+$/);
   });
 });
