@@ -41,10 +41,42 @@ export async function createPostgresDb(url: string): Promise<Db> {
 
 const store = globalThis as unknown as { __surkaDb?: Promise<Db> };
 
+/**
+ * Which database this deployment may open.
+ *
+ * The Neon integration scopes one DATABASE_URL to both Preview and Production
+ * unless per-branch databases are set up, so a preview deployment read and
+ * wrote the live data: a pull request could create listings, approve them,
+ * accept swaps, and verify commitments against the record real businesses are
+ * judged on. Preview builds no longer migrate that database, which was the
+ * half that could break a deploy, but reading and writing it was the half that
+ * could corrupt it.
+ *
+ * Preview now needs its own URL and refuses to fall back. Breaking previews
+ * until a branch database exists is the right failure: a broken preview costs
+ * a few minutes, and nothing in the product can tell a preview's writes from a
+ * real founder's afterwards.
+ *
+ * Set PREVIEW_DATABASE_URL to a Neon branch, or ALLOW_PRODUCTION_DB_IN_PREVIEW
+ * to 1 if you genuinely want a preview pointed at live data and have decided
+ * that on purpose.
+ */
+function databaseUrl(): string | undefined {
+  const url = process.env.DATABASE_URL?.trim();
+  if (process.env.VERCEL_ENV !== "preview") return url;
+
+  const preview = process.env.PREVIEW_DATABASE_URL?.trim();
+  if (preview) return preview;
+  if (process.env.ALLOW_PRODUCTION_DB_IN_PREVIEW === "1") return url;
+  throw new Error(
+    "This is a preview deployment and PREVIEW_DATABASE_URL is not set. DATABASE_URL is shared with production, so a preview would read and write live swaps. Point PREVIEW_DATABASE_URL at a Neon branch, or set ALLOW_PRODUCTION_DB_IN_PREVIEW=1 to accept that.",
+  );
+}
+
 /** The app's shared database handle, reused across hot reloads. */
 export function getDb(): Promise<Db> {
   if (!store.__surkaDb) {
-    const url = process.env.DATABASE_URL?.trim();
+    const url = databaseUrl();
     if (!url && process.env.VERCEL) {
       // Serverless functions can't keep a local database; fail clearly instead.
       throw new Error(

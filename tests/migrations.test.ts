@@ -1,7 +1,7 @@
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 const DRIZZLE = path.join(process.cwd(), "drizzle");
 
@@ -164,5 +164,66 @@ describe("migrating a database that already has rows", () => {
     // survivor is the newest, which is the figure the app would show.
     const rows = await client.query<{ value: number }>("select value from results where metric = 'installs'");
     expect(rows.rows.map((r) => r.value)).toEqual([500]);
+  });
+});
+
+/**
+ * The Neon integration scopes one DATABASE_URL to both Preview and Production
+ * unless per-branch databases are set up, so a preview deployment read and
+ * wrote the live data. Preview builds no longer migrate it, but reading and
+ * writing it was the half that could corrupt it.
+ */
+describe("which database a deployment may open", () => {
+  const ENV_KEYS = ["VERCEL_ENV", "DATABASE_URL", "PREVIEW_DATABASE_URL", "ALLOW_PRODUCTION_DB_IN_PREVIEW"];
+  const saved = new Map<string, string | undefined>();
+
+  beforeEach(() => {
+    for (const key of ENV_KEYS) saved.set(key, process.env[key]);
+  });
+
+  afterEach(() => {
+    for (const [key, value] of saved) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  /** The handle is cached on globalThis, so clearing that is enough. */
+  async function open() {
+    delete (globalThis as { __surkaDb?: unknown }).__surkaDb;
+    const { getDb } = await import("@/db/client");
+    return getDb();
+  }
+
+  it("refuses the production database in a preview", async () => {
+    process.env.VERCEL_ENV = "preview";
+    process.env.DATABASE_URL = "postgres://production/live";
+    delete process.env.PREVIEW_DATABASE_URL;
+    delete process.env.ALLOW_PRODUCTION_DB_IN_PREVIEW;
+    await expect(open()).rejects.toThrow(/PREVIEW_DATABASE_URL is not set/);
+  });
+
+  it("takes the preview's own database when it has one", async () => {
+    process.env.VERCEL_ENV = "preview";
+    process.env.DATABASE_URL = "postgres://production/live";
+    process.env.PREVIEW_DATABASE_URL = "postgres://branch/preview";
+    // Resolves, because postgres() connects lazily. The point is that the
+    // guard let it through rather than refusing.
+    await expect(open()).resolves.toBeDefined();
+  });
+
+  it("lets the choice be made on purpose", async () => {
+    process.env.VERCEL_ENV = "preview";
+    process.env.DATABASE_URL = "postgres://production/live";
+    delete process.env.PREVIEW_DATABASE_URL;
+    process.env.ALLOW_PRODUCTION_DB_IN_PREVIEW = "1";
+    await expect(open()).resolves.toBeDefined();
+  });
+
+  it("leaves production alone", async () => {
+    process.env.VERCEL_ENV = "production";
+    process.env.DATABASE_URL = "postgres://production/live";
+    delete process.env.PREVIEW_DATABASE_URL;
+    await expect(open()).resolves.toBeDefined();
   });
 });

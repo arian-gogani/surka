@@ -68,6 +68,7 @@ Without `DATABASE_URL`, a Vercel deployment refuses to start and says why, inste
 | `ADMIN_PASSWORD` | Yes | Operator dashboard password |
 | `SESSION_SECRET` | Yes | 16+ random characters for signing the operator session |
 | `CRON_SECRET` | Yes | Protects `/api/cron/reminders` |
+| `PREVIEW_DATABASE_URL` | On Vercel previews | A Neon branch for preview deployments. The Neon integration scopes one `DATABASE_URL` to both Preview and Production, so without this a preview reads and writes live swaps. Previews refuse to start without it; set `ALLOW_PRODUCTION_DB_IN_PREVIEW=1` to override on purpose. |
 | `RESEND_API_KEY`, `EMAIL_FROM` | To send any reminder | Both, or neither. `EMAIL_FROM` must be on a domain you've verified with Resend. Without them, reminders print to the server log, stay due, and the cron answers 503. |
 | `CONTACT_EMAIL` | No | Where "Run your first swap" on the landing page goes |
 
