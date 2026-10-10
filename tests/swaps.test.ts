@@ -604,6 +604,57 @@ describe("the partner list", () => {
     expect(view).not.toBeNull();
   });
 
+  it("flags a second listing on a website that already has a record", async () => {
+    // The record follows the party row, and the public form makes a new row,
+    // so delisting and submitting again sheds a bad record. Reusing the
+    // existing row would hand the submitter a business they may not own, so
+    // the duplicate goes in front of the person who approves listings.
+    const first = await createListing(
+      db,
+      {
+        name: "Receipt Butler",
+        kind: "app",
+        website: "https://receiptbutler.example/pricing",
+        offers: "A slot in our onboarding email",
+        needs: "A billing tool my users would pay for",
+      },
+      NOW,
+    );
+    await approveListing(db, first.party.id, NOW);
+    await setListed(db, first.token, { listed: "" }, NOW);
+
+    const again = await createListing(
+      db,
+      {
+        name: "Receipt Butler (new)",
+        kind: "app",
+        // Same host, different path and a www prefix.
+        website: "https://www.receiptbutler.example/",
+        offers: "A slot in our onboarding email",
+        needs: "A billing tool my users would pay for",
+      },
+      NOW,
+    );
+
+    const queue = await pendingListings(db, NOW);
+    const flagged = queue.find((l) => l.id === again.party.id);
+    expect(flagged?.sameSite.map((o) => o.partyId)).toEqual([first.party.id]);
+
+    // A listing on its own website is not flagged.
+    const unrelated = await createListing(
+      db,
+      {
+        name: "Something Else",
+        kind: "app",
+        website: "https://somethingelse.example",
+        offers: "A slot in our onboarding email",
+        needs: "A billing tool my users would pay for",
+      },
+      NOW,
+    );
+    expect((await pendingListings(db, NOW)).find((l) => l.id === unrelated.party.id)?.sameSite).toEqual([]);
+  });
+
   it("will not approve a business that never asked", async () => {
     const { newsletter } = await agreed();
     await expectSurka(approveListing(db, newsletter.id, NOW), "not_found");
@@ -674,7 +725,7 @@ describe("listing without a swap", () => {
 
     const listings = await listListings(db, NOW);
     expect(listings.map((l) => l.id)).toEqual([party.id]);
-    expect(listings[0]?.record).toEqual({ kept: 0, resolved: 0 });
+    expect(listings[0]?.record).toEqual({ kept: 0, resolved: 0, late: 0 });
     expect(describeRecord(listings[0]!.record)).toBe("No swaps through Surka yet");
   });
 
@@ -1099,7 +1150,7 @@ describe("a track record survives into the next swap", () => {
     // Both sides really are kept, and the swap really did complete. It just
     // cannot evidence anything, because one person held both links.
     expect((await getSwapForToken(db, self.tokens.a, NOW)).swap.status).toBe("completed");
-    expect(await partyRecord(db, mine.id, NOW)).toEqual({ kept: 0, resolved: 0 });
+    expect(await partyRecord(db, mine.id, NOW)).toEqual({ kept: 0, resolved: 0, late: 0 });
     expect((await partyRecords(db, NOW)).get(mine.id)).toBeUndefined();
 
     // An operator-run swap between the same two does count, because a person
@@ -1117,7 +1168,7 @@ describe("a track record survives into the next swap", () => {
     await respond(db, real.tokens.b, { decision: "accept" }, NOW);
     const realView = await getSwapForToken(db, real.tokens.a, NOW);
     for (const c of realView.commitments) await verifyCommitment(db, c.id, "kept", NOW);
-    expect(await partyRecord(db, mine.id, NOW)).toEqual({ kept: 1, resolved: 1 });
+    expect(await partyRecord(db, mine.id, NOW)).toEqual({ kept: 1, resolved: 1, late: 0 });
   });
 
   it("refuses to mint a second listing link for a business that has one", async () => {

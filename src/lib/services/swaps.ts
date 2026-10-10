@@ -360,8 +360,34 @@ export async function unseenProposals(db: Db): Promise<
     .orderBy(asc(swaps.proposedAt));
 }
 
+/**
+ * Another listed or previously listed business on the same website.
+ *
+ * A bad record is shed by delisting and submitting again: createListing makes
+ * a fresh party row, and the record follows the row, so the new listing reads
+ * "No swaps through Surka yet". Reusing the existing party here would be worse
+ * than the problem, because it would hand whoever submitted the form a link to
+ * a business they may not own. So the duplicate goes in front of the person
+ * who already has to approve the listing, with the record it is trying to
+ * leave behind.
+ */
+export interface SameSite {
+  partyId: string;
+  name: string;
+  record: TrackRecord;
+}
+
+function hostOf(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).host.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
+
 /** Listings waiting on the operator, oldest first: a queue, not a feed. */
-export async function pendingListings(db: Db, now = new Date()): Promise<Listing[]> {
+export async function pendingListings(db: Db, now = new Date()): Promise<(Listing & { sameSite: SameSite[] })[]> {
   const rows = await db
     .select({
       id: parties.id,
@@ -383,14 +409,25 @@ export async function pendingListings(db: Db, now = new Date()): Promise<Listing
       ),
     )
     .orderBy(asc(parties.listingRequestedAt));
-  const records = await partyRecords(db, now);
-  return rows.map((row) => ({
-    ...row,
-    offers: row.offers ?? "",
-    needs: row.needs ?? "",
-    listedAt: row.listedAt as Date,
-    record: records.get(row.id) ?? NO_RECORD,
-  }));
+  const [records, everyone] = await Promise.all([
+    partyRecords(db, now),
+    db.select({ id: parties.id, name: parties.name, website: parties.website }).from(parties),
+  ]);
+  return rows.map((row) => {
+    const host = hostOf(row.website);
+    return {
+      ...row,
+      offers: row.offers ?? "",
+      needs: row.needs ?? "",
+      listedAt: row.listedAt as Date,
+      record: records.get(row.id) ?? NO_RECORD,
+      sameSite: host
+        ? everyone
+            .filter((p) => p.id !== row.id && hostOf(p.website) === host)
+            .map((p) => ({ partyId: p.id, name: p.name, record: records.get(p.id) ?? NO_RECORD }))
+        : [],
+    };
+  });
 }
 
 export interface CreatedListing {
@@ -585,6 +622,7 @@ export async function partyRecord(db: Db, partyId: string, now = new Date()): Pr
       status: commitments.status,
       verifiedAt: commitments.verifiedAt,
       dueDate: commitments.dueDate,
+      deliveredAt: commitments.deliveredAt,
     })
     .from(commitments)
     .innerJoin(swaps, eq(swaps.id, commitments.swapId))
@@ -613,6 +651,7 @@ export async function partyRecords(db: Db, now = new Date()): Promise<Map<string
       status: commitments.status,
       verifiedAt: commitments.verifiedAt,
       dueDate: commitments.dueDate,
+      deliveredAt: commitments.deliveredAt,
       side: commitments.side,
       partyAId: swaps.partyAId,
       partyBId: swaps.partyBId,

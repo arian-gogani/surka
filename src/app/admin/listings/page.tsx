@@ -52,6 +52,22 @@ export default async function ListingsPage({
             {pending.map((l) => (
               <li key={l.id} className="px-5 py-4">
                 <Entry listing={l} label="Asked" />
+                {/* The record follows the business row, and submitting the
+                    public form again makes a new row, so a bad record is shed
+                    by delisting and re-listing. This is the only place that
+                    can be caught. */}
+                {l.sameSite.length > 0 ? (
+                  <p className="mt-2 rounded-md border border-spark/40 bg-spark-wash px-3 py-2 text-[14px] text-[#7a2410]">
+                    Same website as{" "}
+                    {l.sameSite.map((other, i) => (
+                      <span key={other.partyId}>
+                        {i > 0 ? ", " : null}
+                        {other.name} ({describeRecord(other.record).toLowerCase()})
+                      </span>
+                    ))}
+                    . This may be a second listing for a business that already has a record.
+                  </p>
+                ) : null}
                 <div className="mt-3 flex flex-wrap gap-3">
                   <form action={approveListingAction}>
                     <input type="hidden" name="partyId" value={l.id} />

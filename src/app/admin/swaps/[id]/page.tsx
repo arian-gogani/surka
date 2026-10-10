@@ -7,7 +7,7 @@ import { TermsFields } from "@/components/terms-fields";
 import { Button, CommitmentState, Field, SideTag, StatusPill } from "@/components/ui";
 import { getDb } from "@/db/client";
 import type { Side } from "@/db/schema";
-import { formatDate, relativeDue, toDateOnly } from "@/lib/dates";
+import { daysUntil, formatDate, formatShortDate, relativeDue, toDateOnly } from "@/lib/dates";
 import { appUrl } from "@/lib/env";
 import { SurkaError } from "@/lib/errors";
 import { getSwapDetail, type SwapDetail } from "@/lib/services/swaps";
@@ -143,6 +143,18 @@ export default async function SwapAdminPage({
                     </>
                   ) : null}
                 </p>
+                {/* The one fact the Kept decision turns on, and it was not on
+                    this screen. deliveredAt was stored and compared to
+                    nothing, so the operator had to read the timeline to learn
+                    a delivery landed three months late. */}
+                {c.deliveredAt ? (
+                  <p className="num mt-0.5 text-[13px] text-muted">
+                    Delivered {formatShortDate(c.deliveredAt)}
+                    {daysUntil(c.dueDate, c.deliveredAt) < 0
+                      ? `, ${Math.abs(daysUntil(c.dueDate, c.deliveredAt))} day(s) late`
+                      : ", on time"}
+                  </p>
+                ) : null}
               </div>
               <div className="flex flex-col items-end gap-2">
                 <CommitmentState status={c.status} />
