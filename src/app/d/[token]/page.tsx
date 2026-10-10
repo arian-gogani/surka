@@ -259,7 +259,8 @@ function RunYourOwn({ token }: { token: string }) {
       <h2 className="text-xl font-semibold">Got a swap of your own in mind?</h2>
       <p className="mt-2 max-w-prose text-muted">
         Write down what each side gives and by when, and we&apos;ll hold both of you to it. No account, and
-        your partner doesn&apos;t need one either. Your side carries over, so your record keeps building.
+        your partner doesn&apos;t need one either. Your side carries over, and a swap through the partner
+        list adds to your record.
       </p>
       {/* The token proves which business this is, which is what lets the next
           swap reuse the same party instead of starting their record from zero. */}

@@ -316,7 +316,7 @@ describe("delivery and checking", () => {
     // gate a token for a draft, declined or cancelled swap could write a
     // call-off and a note onto the operator's screen for a swap that never ran.
     const seeded = await seedSwap();
-    const first = seeded.commitments?.[0]?.id ?? (await getSwapDetail(db, seeded.swap.id)).commitments[0]!.id;
+    const first = (await getSwapDetail(db, seeded.swap.id)).commitments[0]!.id;
     await expectSurka(withdrawCommitment(db, seeded.tokens.a, first, null, NOW), "conflict");
 
     await markProposed(db, seeded.swap.id, NOW);
@@ -1306,6 +1306,45 @@ describe("a track record survives into the next swap", () => {
       party: { id: newsletter.id },
       canEditIdentity: true,
     });
+  });
+
+  it("keeps an unanswered proposal out of the recipient's record", async () => {
+    // Commitments are written when a swap is created, for every status, and
+    // never deleted. So a proposal nobody accepted had commitments, and the
+    // abandonment rule counted them two weeks after their deadline: declining,
+    // or never opening it, cost the recipient their record. A stranger could
+    // aim five of these an hour at any listed business.
+    const victim = await createParty(db, { name: "Practice Manager Weekly", kind: "newsletter" });
+    const stranger = await createParty(db, { name: "Some Stranger", kind: "app" });
+    await createSwap(
+      db,
+      {
+        title: "Unanswered",
+        partyAId: stranger.id,
+        partyBId: victim.id,
+        commitments: [
+          { side: "a", description: "Something", dueDate: "2026-09-01" },
+          { side: "b", description: "Something else", dueDate: "2026-09-01" },
+        ],
+      },
+      // What a directory proposal looks like, which does count once accepted.
+      { status: "proposed", openedBy: "directory", now: NOW },
+    );
+
+    // Long past the deadline and the grace window.
+    const later = new Date("2026-10-30T12:00:00Z");
+    expect(await partyRecord(db, victim.id, later)).toEqual({ kept: 0, resolved: 0, late: 0 });
+    expect((await partyRecords(db, later)).get(victim.id)).toBeUndefined();
+  });
+
+  it("keeps a declined proposal out of the record too", async () => {
+    const seeded = await seedSwap();
+    await markProposed(db, seeded.swap.id, NOW);
+    await respond(db, seeded.tokens.b, { decision: "decline" }, NOW);
+    const later = new Date("2026-11-30T12:00:00Z");
+    // /list promises in as many words that declining costs you nothing.
+    expect(await partyRecord(db, seeded.newsletter.id, later)).toEqual({ kept: 0, resolved: 0, late: 0 });
+    expect(await partyRecord(db, seeded.app.id, later)).toEqual({ kept: 0, resolved: 0, late: 0 });
   });
 
   it("keeps a self-dealt swap out of the public record", async () => {

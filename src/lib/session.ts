@@ -1,5 +1,6 @@
 // Operator session: a signed, expiring cookie. Uses Web Crypto so the same
 // code runs in middleware (edge) and in server actions (node).
+import { constantTimeEquals } from "./compare";
 
 export const SESSION_COOKIE = "surka_operator";
 export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 14;
@@ -44,13 +45,6 @@ export async function createSessionValue(nowMs = Date.now()): Promise<string> {
   return `${expires}.${await hmac(signingKey(secret), `operator:${expires}`)}`;
 }
 
-/** Constant-time comparison for equal-length hex strings. */
-function sameHex(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
 
 export async function verifySessionValue(value: string | undefined, nowMs = Date.now()): Promise<boolean> {
   const secret = sessionSecret();
@@ -58,7 +52,7 @@ export async function verifySessionValue(value: string | undefined, nowMs = Date
   const [expiresRaw, signature] = value.split(".");
   const expires = Number(expiresRaw);
   if (!signature || !Number.isInteger(expires) || expires * 1000 < nowMs) return false;
-  return sameHex(signature, await hmac(signingKey(secret), `operator:${expires}`));
+  return constantTimeEquals(signature, await hmac(signingKey(secret), `operator:${expires}`));
 }
 
 /** Checks the operator password without leaking its length through timing. */
@@ -67,5 +61,5 @@ export async function passwordMatches(candidate: string): Promise<boolean> {
   if (!expected) return false;
   const secret = sessionSecret() ?? "surka";
   const [a, b] = await Promise.all([hmac(secret, candidate), hmac(secret, expected)]);
-  return sameHex(a, b);
+  return constantTimeEquals(a, b);
 }

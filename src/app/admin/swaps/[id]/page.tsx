@@ -440,7 +440,17 @@ function NextStep({ detail, lastCounter }: { detail: SwapDetail; lastCounter: st
       body = <p>Both sides agreed. Check each commitment against its proof as it&apos;s delivered.</p>;
       break;
     case "completed":
-      body = <p>Completed. Every commitment has been checked, and each side&apos;s record is updated.</p>;
+      // Only a swap one person did not hold both links for feeds the record,
+      // which is every operator-run swap and every directory proposal, but not
+      // one somebody set up themselves from the public form.
+      body = (
+        <p>
+          Completed. Every commitment has been checked.
+          {detail.swap.openedBy === "proposer"
+            ? " This one was set up by the proposer, so it does not count toward either side's public record."
+            : " Both sides' records are updated."}
+        </p>
+      );
       break;
     default:
       body = <p>This swap is closed.</p>;

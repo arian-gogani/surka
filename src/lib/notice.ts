@@ -9,6 +9,8 @@
 // like. A signature costs one HMAC and keeps every message exactly as written,
 // which an allowlist of codes would not.
 
+import { constantTimeEquals } from "./compare";
+
 const encoder = new TextEncoder();
 
 /** Truncated to keep the URL short; 80 bits is far beyond guessing a forgery. */
@@ -35,14 +37,6 @@ async function tag(message: string): Promise<string | null> {
     .slice(0, TAG_LENGTH);
 }
 
-/** Constant-time comparison for equal-length hex strings. */
-function sameHex(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
-
 /** Query parameters carrying a message and its signature. */
 export async function signNotice(params: { ok?: string; error?: string }): Promise<Record<string, string>> {
   const message = params.ok ?? params.error ?? "";
@@ -64,5 +58,5 @@ export async function verifyNotice(
 ): Promise<string | null> {
   if (!message || !signature) return null;
   const expected = await tag(message);
-  return expected && sameHex(expected, signature) ? message : null;
+  return expected && constantTimeEquals(expected, signature) ? message : null;
 }

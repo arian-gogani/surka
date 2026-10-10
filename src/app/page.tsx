@@ -36,7 +36,7 @@ const STEPS = [
   },
 ];
 
-/** Canonical set explicitly: the landing page is one of only two indexable URLs. */
+/** Canonical set explicitly, like every page in the sitemap. */
 export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 export default function Home() {
@@ -171,9 +171,23 @@ export default function Home() {
           <div>
             <h2 className="text-3xl font-semibold">Your record travels with you</h2>
             <p className="mt-4 max-w-prose text-lg leading-relaxed text-muted">
-              Every swap records whether each side delivered on time. That record shows on your next deal
-              sheet, so bigger partners can see you keep your word. Old misses fade, and one bad swap
-              won&apos;t follow you forever.
+              A swap run with a partner from the list records whether each side delivered, and whether it
+              landed by the date. That record shows on your listing and on your next deal sheet, so a bigger
+              partner can see you keep your word.
+            </p>
+            {/*
+              Both halves of this used to be false. It claimed every swap
+              builds a record, when a swap you set up yourself with someone you
+              already know cannot, because one person holds both links and the
+              number would be writable by the business it describes. And it
+              claimed old misses fade, which was a 180 day half life that was
+              computed and displayed nowhere and has since been deleted.
+            */}
+            <p className="mt-4 max-w-prose text-[0.9375rem] leading-relaxed text-muted">
+              Two things worth saying plainly. Nothing fades, so a miss stays in the count. And a swap you
+              arrange privately with someone you already know does not build a record, because one person
+              holds both links and a number anyone can write about themselves is worth nothing. Being on the
+              partner list is what makes it count.
             </p>
           </div>
           <div>

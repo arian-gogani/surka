@@ -47,8 +47,11 @@ export async function createListingAction(_previous: ListState, formData: FormDa
   // Straight to the page the link opens, rather than a one-time confirmation
   // screen. The link is in the address bar from here on, which is the one place
   // someone might actually keep it.
+  // Not "you're on the partner list": createListing deliberately leaves it
+  // unapproved, and the page it lands on says so correctly. A notice claiming
+  // otherwise contradicts the paragraph directly beneath it.
   const signed = await signNotice({
-    ok: "You're on the partner list. Keep this page's link: it's how you edit or remove your listing.",
+    ok: "Got it. We'll read it before it goes public, usually within a day. Keep this page's link: it's how you edit or remove your listing.",
   });
   redirect(`/p/${token}?${new URLSearchParams(signed)}`);
 }

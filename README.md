@@ -22,7 +22,7 @@ This repository is Phase 1 of the [master plan](#where-this-fits): the deal shee
 5. **You check it.** Mark each commitment kept or missed against its proof. When everything is checked, the swap completes on its own.
 6. **Everyone sees the result.** Tracking links count clicks for each placement, and either side can report installs or signups. Results are shared only between the two sides.
 
-Reputation counts **commitments kept, never results**: a partner controls whether they deliver, not whether an audience clicks. Old outcomes fade with a 180-day half-life, so one bad swap doesn't follow anyone forever.
+Reputation counts **commitments kept, never results**: a partner controls whether they deliver, not whether an audience clicks. Nothing fades, and only swaps where one person did not hold both links count, so the number is the one claim on a listing that the business cannot write about itself. A commitment still unmet two weeks after its deadline counts as unmet, so going quiet costs what missing costs.
 
 ## Quick start
 

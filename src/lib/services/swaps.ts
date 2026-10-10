@@ -619,6 +619,27 @@ export async function getParty(db: Db, partyId: string): Promise<Party | null> {
  */
 const INDEPENDENT: readonly OpenedBy[] = ["operator", "directory"];
 
+/**
+ * Statuses whose commitments mean anything about a business.
+ *
+ * Commitments are written when the swap is created, for every status, and they
+ * are never deleted. So without this, a proposal nobody accepted still had
+ * commitments, and the abandonment rule counted them once their deadline was
+ * two weeks past. Declining a proposal, or never opening it, cost the
+ * recipient their record.
+ *
+ * That is worse than a wrong number: a stranger could post /start?with= at a
+ * listed business with a deadline a day out, never be answered, and two weeks
+ * later that business reads "Kept 0 of 1 commitment" on the public directory.
+ * Five of those an hour per address. And /list promises in as many words that
+ * "declining costs you nothing".
+ *
+ * The reminder query had this right from the start, scoped to accepted. The
+ * record query did not, and the abandonment docstring says "a party could
+ * accept a swap, never deliver", which is the behaviour intended here.
+ */
+const COUNTS: readonly SwapStatus[] = ["accepted", "completed"];
+
 export async function partyRecord(db: Db, partyId: string, now = new Date()): Promise<TrackRecord> {
   const rows = await db
     .select({
@@ -632,6 +653,7 @@ export async function partyRecord(db: Db, partyId: string, now = new Date()): Pr
     .where(
       and(
         inArray(swaps.openedBy, INDEPENDENT),
+        inArray(swaps.status, COUNTS),
         or(
           and(eq(commitments.side, "a"), eq(swaps.partyAId, partyId)),
           and(eq(commitments.side, "b"), eq(swaps.partyBId, partyId)),
@@ -661,9 +683,10 @@ export async function partyRecords(db: Db, now = new Date()): Promise<Map<string
     })
     .from(commitments)
     .innerJoin(swaps, eq(swaps.id, commitments.swapId))
-    // Same rule as partyRecord, for the same reason: a swap whose two links
-    // were both held by one person cannot evidence anything about either side.
-    .where(inArray(swaps.openedBy, INDEPENDENT));
+    // Same rules as partyRecord, for the same reasons: a swap whose two links
+    // were both held by one person cannot evidence anything about either side,
+    // and a swap nobody agreed to cannot either.
+    .where(and(inArray(swaps.openedBy, INDEPENDENT), inArray(swaps.status, COUNTS)));
 
   const byParty = new Map<string, CheckedCommitment[]>();
   for (const row of rows) {
