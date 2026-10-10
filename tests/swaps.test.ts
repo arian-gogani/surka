@@ -297,6 +297,20 @@ describe("delivery and checking", () => {
     expect(after?.withdrawnNote).toBeNull();
   });
 
+  it("stops showing a called-off commitment as the next thing due", async () => {
+    const { swap, tokens, mine } = await acceptedSwap();
+    const before = (await listSwaps(db)).find((r) => r.swap.id === swap.id);
+    expect(before?.nextDue?.description).toContain("Extra free month");
+    expect(before?.calledOff).toBe(0);
+
+    await withdrawCommitment(db, tokens.a, mine.id, null, NOW);
+    const after = (await listSwaps(db)).find((r) => r.swap.id === swap.id);
+    // Not coming, so it is not the next thing due. It is the next thing for
+    // the operator, because nothing else will ever move it.
+    expect(after?.nextDue?.description).not.toContain("Extra free month");
+    expect(after?.calledOff).toBe(1);
+  });
+
   it("will not let a side call off something it already delivered", async () => {
     const { tokens, mine } = await acceptedSwap();
     await markDelivered(db, tokens.a, mine.id, { proofUrl: "https://a.example/x" }, NOW);

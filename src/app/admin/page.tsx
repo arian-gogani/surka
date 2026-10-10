@@ -151,7 +151,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {swaps.map(({ swap, partyAName, partyBName, nextDue, awaitingCheck }) => (
+              {swaps.map(({ swap, partyAName, partyBName, nextDue, awaitingCheck, calledOff }) => (
                 <tr key={swap.id} className="hover:bg-paper/60">
                   <td className="px-5 py-4">
                     <Link href={`/admin/swaps/${swap.id}`} className="font-medium underline-offset-4 hover:underline">
@@ -167,7 +167,15 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
                   <td className="px-5 py-4 text-[0.875rem]">
                     {/* Checks first: a pending due date used to win, so the one
                         thing actually waiting on the operator was invisible. */}
-                    {awaitingCheck > 0 ? (
+                    {calledOff > 0 ? (
+                      // Ahead of a delivery to check: nothing else will ever
+                      // move a called-off commitment, so it sits forever until
+                      // the operator records it.
+                      <span className="font-medium text-spark-deep">
+                        {calledOff === 1 ? "1 called off" : `${calledOff} called off`}
+                        {awaitingCheck > 0 ? `, ${awaitingCheck} to check` : ""}
+                      </span>
+                    ) : awaitingCheck > 0 ? (
                       <span className="font-medium text-spark-deep">
                         {awaitingCheck === 1 ? "1 delivery to check" : `${awaitingCheck} deliveries to check`}
                       </span>

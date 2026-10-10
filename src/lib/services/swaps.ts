@@ -1388,6 +1388,14 @@ export interface SwapListItem {
    * on the operator looks identical to one with nothing happening.
    */
   awaitingCheck: number;
+  /**
+   * Commitments a side has called off.
+   *
+   * These wait on the operator as much as a delivery does: nothing else will
+   * ever move them, reminders have stopped, and the record only counts them
+   * once the deadline is well past.
+   */
+  calledOff: number;
 }
 
 export async function listSwaps(db: Db): Promise<SwapListItem[]> {
@@ -1402,7 +1410,7 @@ export async function listSwaps(db: Db): Promise<SwapListItem[]> {
   if (rows.length === 0) return [];
 
   const swapIds = rows.map((r) => r.swap.id);
-  const [pending, delivered] = await Promise.all([
+  const [pending, delivered, calledOff] = await Promise.all([
     db
       .select({
         swapId: commitments.swapId,
@@ -1411,17 +1419,41 @@ export async function listSwaps(db: Db): Promise<SwapListItem[]> {
         side: commitments.side,
       })
       .from(commitments)
-      .where(and(inArray(commitments.swapId, swapIds), eq(commitments.status, "pending")))
+      // A called-off commitment is not coming, so showing it as the next thing
+      // due tells the operator to wait for something nobody is working on.
+      .where(
+        and(
+          inArray(commitments.swapId, swapIds),
+          eq(commitments.status, "pending"),
+          isNull(commitments.withdrawnAt),
+        ),
+      )
       .orderBy(asc(commitments.dueDate)),
     db
       .select({ swapId: commitments.swapId })
       .from(commitments)
       .where(and(inArray(commitments.swapId, swapIds), eq(commitments.status, "delivered"))),
+    // These wait on the operator too: nothing else will ever move them, and
+    // the record counts them only once the deadline has long passed.
+    db
+      .select({ swapId: commitments.swapId })
+      .from(commitments)
+      .where(
+        and(
+          inArray(commitments.swapId, swapIds),
+          eq(commitments.status, "pending"),
+          isNotNull(commitments.withdrawnAt),
+        ),
+      ),
   ]);
 
   const checksBySwap = new Map<string, number>();
   for (const c of delivered) {
     checksBySwap.set(c.swapId, (checksBySwap.get(c.swapId) ?? 0) + 1);
+  }
+  const calledOffBySwap = new Map<string, number>();
+  for (const c of calledOff) {
+    calledOffBySwap.set(c.swapId, (calledOffBySwap.get(c.swapId) ?? 0) + 1);
   }
   const nextBySwap = new Map<string, SwapListItem["nextDue"]>();
   for (const c of pending) {
@@ -1433,5 +1465,6 @@ export async function listSwaps(db: Db): Promise<SwapListItem[]> {
     ...r,
     nextDue: nextBySwap.get(r.swap.id) ?? null,
     awaitingCheck: checksBySwap.get(r.swap.id) ?? 0,
+    calledOff: calledOffBySwap.get(r.swap.id) ?? 0,
   }));
 }
