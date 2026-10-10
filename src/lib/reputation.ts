@@ -1,10 +1,27 @@
 import type { CommitmentStatus } from "@/db/schema";
+import { daysUntil } from "./dates";
 import { isResolved } from "./swap-rules";
 
 export interface CheckedCommitment {
   status: CommitmentStatus;
   verifiedAt: Date | null;
+  /** Date-only, as stored. Needed to tell an abandoned promise from a live one. */
+  dueDate: string;
 }
+
+/**
+ * How long past a deadline a promise stays uncounted.
+ *
+ * Abandoning a commitment used to be free and invisible. Nothing writes
+ * "missed" except the operator's button, and the reminder run gives up after
+ * one overdue notice, so a party could accept a swap, never deliver, and keep
+ * showing "Kept 2 of 2" while three accepted commitments sat years overdue.
+ * The denominator was the operator's workload, not the business's promises.
+ *
+ * Two weeks is long enough to cover a slipped issue or a holiday, and short
+ * enough that ghosting costs what a miss costs.
+ */
+export const ABANDONED_AFTER_DAYS = 14;
 
 export interface TrackRecord {
   /** Commitments checked as kept. */
@@ -30,13 +47,20 @@ export const NO_RECORD: TrackRecord = { kept: 0, resolved: 0 };
  * verify by counting. If decay comes back it belongs in describeRecord, which
  * is the only thing anyone reads.
  */
-export function computeRecord(items: readonly CheckedCommitment[], _now: Date): TrackRecord {
+export function computeRecord(items: readonly CheckedCommitment[], now: Date): TrackRecord {
   let kept = 0;
   let resolved = 0;
   for (const item of items) {
-    if (!isResolved(item.status)) continue;
-    resolved += 1;
-    if (item.status === "kept") kept += 1;
+    if (isResolved(item.status)) {
+      resolved += 1;
+      if (item.status === "kept") kept += 1;
+      continue;
+    }
+    // Only "pending". A "delivered" commitment the operator has not got to yet
+    // is waiting on us, and counting it against the party who did their part
+    // would charge them for our latency.
+    if (item.status !== "pending") continue;
+    if (daysUntil(item.dueDate, now) <= -ABANDONED_AFTER_DAYS) resolved += 1;
   }
   return { kept, resolved };
 }

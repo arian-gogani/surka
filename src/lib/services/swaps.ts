@@ -581,7 +581,11 @@ const INDEPENDENT: readonly OpenedBy[] = ["operator", "directory"];
 
 export async function partyRecord(db: Db, partyId: string, now = new Date()): Promise<TrackRecord> {
   const rows = await db
-    .select({ status: commitments.status, verifiedAt: commitments.verifiedAt })
+    .select({
+      status: commitments.status,
+      verifiedAt: commitments.verifiedAt,
+      dueDate: commitments.dueDate,
+    })
     .from(commitments)
     .innerJoin(swaps, eq(swaps.id, commitments.swapId))
     .where(
@@ -608,6 +612,7 @@ export async function partyRecords(db: Db, now = new Date()): Promise<Map<string
     .select({
       status: commitments.status,
       verifiedAt: commitments.verifiedAt,
+      dueDate: commitments.dueDate,
       side: commitments.side,
       partyAId: swaps.partyAId,
       partyBId: swaps.partyBId,

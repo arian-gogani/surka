@@ -114,16 +114,39 @@ describe("track record", () => {
     expect(describeRecord(record)).toBe("No swaps through Surka yet");
   });
 
-  it("ignores commitments that haven't been checked", () => {
+  it("ignores a commitment that is still live", () => {
     const record = computeRecord(
       [
-        { status: "kept", verifiedAt: NOW },
-        { status: "pending", verifiedAt: null },
+        { status: "kept", verifiedAt: NOW, dueDate: "2026-09-01" },
+        // Still in the future, so it is a promise in flight, not a broken one.
+        { status: "pending", verifiedAt: null, dueDate: "2026-10-20" },
       ],
       NOW,
     );
     expect(record.resolved).toBe(1);
     expect(describeRecord(record)).toBe("Kept 1 of 1 commitment");
+  });
+
+  it("counts an accepted promise nobody delivered, once it is clearly abandoned", () => {
+    // Nothing writes "missed" except the operator's button, and the reminder
+    // run gives up after one overdue notice, so ghosting a commitment used to
+    // be free and invisible: the denominator was the operator's workload, not
+    // the business's promises.
+    const kept = { status: "kept" as const, verifiedAt: NOW, dueDate: "2026-09-20" };
+    const live = { status: "pending" as const, verifiedAt: null, dueDate: "2026-10-20" };
+    const slipping = { status: "pending" as const, verifiedAt: null, dueDate: "2026-09-25" };
+    const ghosted = { status: "pending" as const, verifiedAt: null, dueDate: "2026-08-01" };
+
+    expect(computeRecord([kept, live], NOW)).toEqual({ kept: 1, resolved: 1 });
+    // A week late is a slipped issue, not an abandoned promise.
+    expect(computeRecord([kept, slipping], NOW)).toEqual({ kept: 1, resolved: 1 });
+    expect(computeRecord([kept, ghosted], NOW)).toEqual({ kept: 1, resolved: 2 });
+    expect(describeRecord(computeRecord([kept, ghosted], NOW))).toBe("Kept 1 of 2 commitments");
+
+    // Delivered and waiting on the operator never counts against the party who
+    // did their part: that would charge them for our latency.
+    const waiting = { status: "delivered" as const, verifiedAt: null, dueDate: "2026-08-01" };
+    expect(computeRecord([kept, waiting], NOW)).toEqual({ kept: 1, resolved: 1 });
   });
 
   it("counts an old miss exactly like a recent one", () => {
@@ -134,8 +157,8 @@ describe("track record", () => {
     const old = new Date(NOW.getTime() - 3 * 365 * 86_400_000);
     const record = computeRecord(
       [
-        { status: "missed", verifiedAt: old },
-        { status: "kept", verifiedAt: NOW },
+        { status: "missed", verifiedAt: old, dueDate: "2026-09-01" },
+        { status: "kept", verifiedAt: NOW, dueDate: "2026-09-01" },
       ],
       NOW,
     );
