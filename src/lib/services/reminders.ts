@@ -8,6 +8,7 @@ import {
   remindersSent,
   swapAccess,
   swaps,
+  type CommitmentStatus,
   type ReminderKind,
   type Side,
 } from "@/db/schema";
@@ -86,13 +87,25 @@ export async function runReminders(db: Db, send: EmailSender, now = new Date()):
   if (rows.length === 0) return run;
 
   const ids = rows.map((r) => r.commitment.id);
-  const [sentRows, accessRows] = await Promise.all([
+  const swapIds = [...new Set(rows.map((r) => r.commitment.swapId))];
+  const [sentRows, accessRows, allCommitments] = await Promise.all([
     db.select().from(remindersSent).where(inArray(remindersSent.commitmentId, ids)),
-    db
-      .select()
-      .from(swapAccess)
-      .where(inArray(swapAccess.swapId, [...new Set(rows.map((r) => r.commitment.swapId))])),
+    db.select().from(swapAccess).where(inArray(swapAccess.swapId, swapIds)),
+    // The other side's half of each swap. A reminder that names only your own
+    // obligation reads as nagging; the reason to ship is what you get back,
+    // and whether they have already shipped it.
+    db.select().from(commitments).where(inArray(commitments.swapId, swapIds)),
   ]);
+
+  /** What the other side owes on this swap, and where it stands. */
+  function theirSide(
+    row: { partyA: { name: string }; partyB: { name: string } },
+    commitment: { swapId: string; side: Side },
+  ) {
+    const other = commitment.side === "a" ? "b" : "a";
+    const theirs = allCommitments.filter((c) => c.swapId === commitment.swapId && c.side === other);
+    return { name: other === "a" ? row.partyA.name : row.partyB.name, commitments: theirs };
+  }
 
   for (const row of rows) {
     const { commitment } = row;
@@ -111,7 +124,7 @@ export async function runReminders(db: Db, send: EmailSender, now = new Date()):
     // to the log so a developer can read it, but the reminder stays due.
     if (!delivers) {
       run.undeliverable += 1;
-      await send(messageFor(row, commitment, kind, party, token, now)).catch((error) => {
+      await send(messageFor(row, commitment, kind, party, token, now, theirSide(row, commitment))).catch((error) => {
         console.error(`Could not log the reminder for commitment ${commitment.id}`, error);
       });
       continue;
@@ -130,7 +143,7 @@ export async function runReminders(db: Db, send: EmailSender, now = new Date()):
     if (!claim) continue; // Another run got here first.
 
     try {
-      await send(messageFor(row, commitment, kind, party, token, now));
+      await send(messageFor(row, commitment, kind, party, token, now, theirSide(row, commitment)));
       run.sent += 1;
       // The operator's only window onto this. Without it the swap timeline and
       // both deal sheets showed no trace that a reminder had ever gone out, so
@@ -160,6 +173,7 @@ function messageFor(
   party: { name: string; contactName: string | null; email: string | null },
   token: string,
   now: Date,
+  them: TheirSide,
 ) {
   return {
     to: party.email as string,
@@ -172,6 +186,7 @@ function messageFor(
       dueDate: commitment.dueDate,
       link: `${appUrl()}/d/${token}`,
       now,
+      them,
     }),
     // The natural key for this message: one reminder of one kind for one
     // commitment. A retry after a lost response cannot deliver a second copy.
@@ -183,6 +198,39 @@ async function logReminderEvent(db: Db, swapId: string, side: Side, kind: Remind
   await db.insert(events).values({ swapId, type: "reminder_sent", side, detail: kind });
 }
 
+/** The other side of the swap, for the half of the message that is the reason to act. */
+export interface TheirSide {
+  name: string;
+  commitments: { description: string; dueDate: string; status: CommitmentStatus }[];
+}
+
+/**
+ * What the other side owes, and whether they have shipped it.
+ *
+ * The reminder used to name the swap by title and nothing else. A recipient
+ * who agreed to one swap three weeks ago does not recognise its title, and a
+ * message listing only their own obligation reads as nagging. The partner's
+ * name is the memorable thing, and what they owe you is the reason to bother.
+ * Whether they have already delivered is the single most motivating fact
+ * available, and it was sitting unused in the same table.
+ */
+function theirHalf(them: TheirSide): string[] {
+  if (them.commitments.length === 0) return [];
+  const done = them.commitments.filter((c) => c.status !== "pending").length;
+  const standing =
+    done === them.commitments.length
+      ? `${them.name} has already delivered their side.`
+      : done > 0
+        ? `${them.name} has delivered part of their side so far.`
+        : `${them.name} hasn't delivered yet either.`;
+  return [
+    ``,
+    `What ${them.name} owes you:`,
+    ...them.commitments.map((c) => `  ${c.description} (due ${formatDate(c.dueDate)})`),
+    standing,
+  ];
+}
+
 function reminderText(p: {
   kind: ReminderKind;
   name: string;
@@ -191,23 +239,30 @@ function reminderText(p: {
   dueDate: string;
   link: string;
   now: Date;
+  them: TheirSide;
 }): string {
   const when =
     p.kind === "overdue"
-      ? `It was due ${formatDate(p.dueDate)} (${relativeDue(p.dueDate, p.now)}). If it's done, mark it delivered so your partner knows.`
+      ? `It was due ${formatDate(p.dueDate)} (${relativeDue(p.dueDate, p.now)}). If it's done, mark it delivered so ${p.them.name} knows.`
       : `It's due ${formatDate(p.dueDate)} (${relativeDue(p.dueDate, p.now)}).`;
   return [
     `Hi ${p.name},`,
     ``,
-    `A reminder about your swap "${p.swapTitle}".`,
+    // The partner's name in the first line, because that is what a recipient
+    // recognises three weeks later, not the title they typed.
+    `About your swap with ${p.them.name}, "${p.swapTitle}".`,
     ``,
     `What you agreed to deliver: ${p.description}`,
     when,
+    ...theirHalf(p.them),
     ``,
     `When it's done, mark it delivered and paste a link that shows it, like an archive page, a live listing, or a screenshot:`,
     p.link,
     ``,
-    `Thanks for keeping your side of the swap.`,
+    // A reminder with one possible action means someone who cannot deliver
+    // just ignores it, and silence is the worst outcome for both sides.
+    `If it isn't going to happen, open the same link and say so, or just reply to this email. Telling your partner early is worth more than going quiet.`,
+    ``,
     `Surka`,
   ].join("\n");
 }

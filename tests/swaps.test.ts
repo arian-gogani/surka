@@ -936,6 +936,35 @@ describe("reminders", () => {
     expect(outbox[0]?.subject).toContain("Due in 3 days");
   });
 
+  it("names the partner, what they owe, and whether they have shipped", async () => {
+    // The body used to name the swap by title and nothing else. Somebody who
+    // agreed to one swap three weeks ago does not recognise its title, and a
+    // message listing only their own obligation reads as nagging.
+    const { swap, tokens } = await seedSwap();
+    await markProposed(db, swap.id, NOW);
+    await respond(db, tokens.b, { decision: "accept" }, NOW);
+
+    const outbox: EmailMessage[] = [];
+    await runReminders(db, async (m) => void outbox.push(m), NOW);
+    const body = outbox[0]?.text ?? "";
+
+    expect(body).toContain("your swap with Practice Manager Weekly");
+    expect(body).toContain("What Practice Manager Weekly owes you:");
+    expect(body).toContain("Dedicated section in the Oct 17 issue");
+    expect(body).toContain("hasn't delivered yet either");
+    // One possible action means whoever cannot deliver just goes quiet.
+    expect(body).toContain("If it isn't going to happen");
+
+    // Once they have shipped, that is the most motivating fact available.
+    const view = await getSwapForToken(db, tokens.b, NOW);
+    const theirs = view.commitments.find((c) => c.side === "b")!;
+    await markDelivered(db, tokens.b, theirs.id, { proofUrl: "https://pmweekly.example/issue" }, NOW);
+
+    const later: EmailMessage[] = [];
+    await runReminders(db, async (m) => void later.push(m), new Date("2026-10-04T15:00:00Z"));
+    expect(later[0]?.text).toContain("has already delivered their side");
+  });
+
   it("gives every reminder a key the provider can deduplicate on", async () => {
     const { swap, tokens } = await seedSwap();
     await markProposed(db, swap.id, NOW);
