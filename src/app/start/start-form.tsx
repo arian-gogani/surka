@@ -90,7 +90,7 @@ export function StartForm({
         <fieldset className="space-y-4 rounded-xl border border-line bg-white p-5">
           <legend className="px-2 text-sm font-semibold">Your side</legend>
           {prefill.from ? (
-            <p className="text-[15px] text-muted">
+            <p className="text-[0.9375rem] text-muted">
               Carrying over <span className="font-medium text-ink">{prefill.name}</span> from your last swap, so your
               record builds up instead of starting over.
               {prefill.editable ? null : " To change these details you'll need your listing link."}
@@ -180,12 +180,12 @@ export function StartForm({
           <legend className="px-2 text-sm font-semibold">Their side</legend>
           {target ? (
             <>
-              <p className="text-[15px]">
+              <p className="text-[0.9375rem]">
                 <span className="font-medium">{target.name}</span>
                 <span className="text-muted"> from the partner list.</span>
               </p>
               {target.needs ? (
-                <p className="max-w-prose text-[15px] leading-relaxed text-muted">
+                <p className="max-w-prose text-[0.9375rem] leading-relaxed text-muted">
                   They said they&apos;re looking for: {target.needs}
                 </p>
               ) : null}
@@ -249,7 +249,7 @@ export function StartForm({
 
         <div className="flex flex-wrap items-center gap-4">
           <SubmitButton pendingLabel="Creating...">Create the deal sheet</SubmitButton>
-          <p className="text-[15px] text-muted">Nothing is sent anywhere until you share the link yourself.</p>
+          <p className="text-[0.9375rem] text-muted">Nothing is sent anywhere until you share the link yourself.</p>
         </div>
       </form>
     </>

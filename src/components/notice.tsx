@@ -40,7 +40,7 @@ export function Notice({
       ref={ref}
       tabIndex={arriving ? -1 : undefined}
       role={tone === "error" ? "alert" : "status"}
-      className={`rounded-md border px-4 py-3 text-[15px] ${styles}`}
+      className={`rounded-md border px-4 py-3 text-[0.9375rem] ${styles}`}
     >
       {children}
     </div>

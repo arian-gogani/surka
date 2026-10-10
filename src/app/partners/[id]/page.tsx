@@ -62,7 +62,7 @@ export default async function ListingProfile({ params }: Props) {
       </header>
 
       <main className="mx-auto max-w-3xl px-5 pb-24 sm:px-8">
-        <p className="text-[15px] text-muted">{KIND_LABEL[listing.kind]}</p>
+        <p className="text-[0.9375rem] text-muted">{KIND_LABEL[listing.kind]}</p>
         <h1 className="mt-1 break-words text-[36px] font-semibold leading-[1.05] sm:text-[44px]">
           {listing.name}
         </h1>
@@ -72,7 +72,7 @@ export default async function ListingProfile({ params }: Props) {
 
         {/* Said plainly and early. It is the one claim on this page that the
             business cannot write about itself. */}
-        <p className="mt-6 inline-flex rounded-lg border border-kept/30 bg-kept-wash px-4 py-2 text-[15px] font-medium text-kept-deep">
+        <p className="mt-6 inline-flex rounded-lg border border-kept/30 bg-kept-wash px-4 py-2 text-[0.9375rem] font-medium text-kept-deep">
           {describeRecord(listing.record)}
         </p>
 
@@ -118,7 +118,7 @@ export default async function ListingProfile({ params }: Props) {
           </div>
         </div>
 
-        <p className="mt-10 text-[15px] text-muted">
+        <p className="mt-10 text-[0.9375rem] text-muted">
           <Link href="/partners" className="underline underline-offset-4">
             Everyone looking for a partner
           </Link>

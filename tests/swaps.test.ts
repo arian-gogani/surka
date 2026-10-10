@@ -494,13 +494,12 @@ describe("tracking and results", () => {
     await reportResult(db, tokens.b, { metric: "clicks", value: 80 });
 
     const view = await getSwapForToken(db, tokens.b, NOW);
-    expect(view.results.map((r) => [r.metric, r.value])).toEqual(
-      expect.arrayContaining([
-        ["signups", 500],
-        ["clicks", 80],
-      ]),
-    );
-    expect(view.results).toHaveLength(2);
+    // Ordered by side then measure, so correcting a figure does not reshuffle
+    // the list and the two sides do not interleave.
+    expect(view.results.map((r) => [r.metric, r.value])).toEqual([
+      ["clicks", 80],
+      ["signups", 500],
+    ]);
     // Replacing does not lose the history: the timeline keeps every submission.
     expect(view.events.filter((e) => e.type === "result_added")).toHaveLength(3);
   });

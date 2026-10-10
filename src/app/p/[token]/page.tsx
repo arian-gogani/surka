@@ -159,7 +159,7 @@ export default async function ListingPage({ params, searchParams }: Props) {
         </div>
 
         {contact ? (
-          <footer className="border-t border-line pt-6 text-[14px] text-muted">
+          <footer className="border-t border-line pt-6 text-[0.875rem] text-muted">
             <p>
               Something wrong?{" "}
               <a

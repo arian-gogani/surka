@@ -30,13 +30,13 @@ export default async function PartiesPage({ searchParams }: { searchParams: Prom
                 <li key={p.id} className="px-5 py-4">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <p className="font-medium">{p.name}</p>
-                    <p className="text-[13px] text-muted">{describeRecord(records.get(p.id) ?? NO_RECORD)}</p>
+                    <p className="text-[0.8125rem] text-muted">{describeRecord(records.get(p.id) ?? NO_RECORD)}</p>
                   </div>
-                  <p className="mt-0.5 text-[13px] text-muted">
+                  <p className="mt-0.5 text-[0.8125rem] text-muted">
                     {[KIND_LABEL[p.kind], p.contactName, p.email].filter(Boolean).join(", ")}
                   </p>
                   {p.offers || p.needs ? (
-                    <p className="mt-2 text-[14px] leading-relaxed">
+                    <p className="mt-2 text-[0.875rem] leading-relaxed">
                       {p.offers ? <>Has: {p.offers}. </> : null}
                       {p.needs ? <>Wants: {p.needs}.</> : null}
                     </p>

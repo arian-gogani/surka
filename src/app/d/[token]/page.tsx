@@ -6,7 +6,7 @@ import { Logo } from "@/components/logo";
 import { Button, ButtonLink, CommitmentState, Field, Notice, SideTag, StatusPill } from "@/components/ui";
 import { getDb } from "@/db/client";
 import type { Commitment, Side } from "@/db/schema";
-import { formatDate, relativeDue } from "@/lib/dates";
+import { formatDate, formatShortDate, relativeDue } from "@/lib/dates";
 import { appUrl, contactEmail } from "@/lib/env";
 import { SurkaError } from "@/lib/errors";
 import { verifyNotice } from "@/lib/notice";
@@ -149,10 +149,10 @@ export default async function SwapLinkPage({ params, searchParams }: Props) {
             }
           >
             {view.responses[0]?.message ? (
-              <blockquote className="rounded-lg border border-line bg-white px-5 py-4 text-[15px] leading-relaxed">
+              <blockquote className="rounded-lg border border-line bg-white px-5 py-4 text-[0.9375rem] leading-relaxed">
                 {/* Always the partner's words, so on the partner's own screen
                     this read "What <your own company> suggested". */}
-                <p className="text-[13px] text-muted">
+                <p className="text-[0.8125rem] text-muted">
                   {me === "b" ? "What you suggested" : `What ${view.partyB.name} suggested`}
                 </p>
                 <p className="mt-1 whitespace-pre-line">{view.responses[0].message}</p>
@@ -186,8 +186,8 @@ export default async function SwapLinkPage({ params, searchParams }: Props) {
                 never shown. Declining with a "but how about November" in the
                 box is the most common real answer, and it was being dropped. */}
             {view.swap.status === "declined" && view.responses[0]?.message ? (
-              <blockquote className="rounded-lg border border-line bg-white px-5 py-4 text-[15px] leading-relaxed">
-                <p className="text-[13px] text-muted">
+              <blockquote className="rounded-lg border border-line bg-white px-5 py-4 text-[0.9375rem] leading-relaxed">
+                <p className="text-[0.8125rem] text-muted">
                   {me === "b" ? "What you said" : `What ${view.partyB.name} said`}
                 </p>
                 <p className="mt-1 whitespace-pre-line">{view.responses[0].message}</p>
@@ -204,7 +204,7 @@ export default async function SwapLinkPage({ params, searchParams }: Props) {
         {/* Every refusal on this page used to end the road: a checked
             commitment, an expired proposal, a race with the other side. There
             was no address anywhere on it, and the logo was not a link. */}
-        <footer className="border-t border-line pt-6 text-[14px] text-muted">
+        <footer className="border-t border-line pt-6 text-[0.875rem] text-muted">
           <p>
             {contact ? (
               <>
@@ -302,9 +302,9 @@ function RespondForm({ token }: { token: string }) {
         explicit, and implicit submission now triggers validation instead.
       */}
       <fieldset className="space-y-3">
-        <legend className="text-[15px] font-medium">What would you like to do?</legend>
+        <legend className="text-[0.9375rem] font-medium">What would you like to do?</legend>
         {DECISIONS.map((d) => (
-          <label key={d.value} className="flex items-start gap-3 text-[15px]">
+          <label key={d.value} className="flex items-start gap-3 text-[0.9375rem]">
             <input type="radio" name="decision" value={d.value} required className="mt-1" />
             <span>
               <span className="font-medium">{d.label}</span>
@@ -341,7 +341,7 @@ function ClaimListing({ token, name }: { token: string; name: string }) {
         <Button type="submit" variant="action">
           Set up your listing
         </Button>
-        <a href="/partners" className="text-[15px] text-muted underline underline-offset-4">
+        <a href="/partners" className="text-[0.9375rem] text-muted underline underline-offset-4">
           See the list
         </a>
       </div>
@@ -469,7 +469,7 @@ function SwapRoom({
               <li key={l.code} className="rounded-xl border border-line bg-white p-4">
                 <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
                   <span className="font-medium">{l.label}</span>
-                  <span className="num text-[13px] text-muted">
+                  <span className="num text-[0.8125rem] text-muted">
                     {l.clicks} {l.clicks === 1 ? "click" : "clicks"}
                   </span>
                 </div>
@@ -478,7 +478,7 @@ function SwapRoom({
                   // clicks are part of this swap's history, but handing back a
                   // copy affordance for a URL that now 404s would get a dead
                   // link published in the next issue.
-                  <p className="text-[14px] text-muted">
+                  <p className="text-[0.875rem] text-muted">
                     This one has been retired and no longer works. Ask us for a replacement if the placement is
                     still running.
                   </p>
@@ -520,10 +520,10 @@ function SwapRoom({
               // fixed, so two rows can honestly carry the same label.
               <li
                 key={`${p.label}-${i}`}
-                className="flex flex-wrap items-baseline justify-between gap-2 px-5 py-3 text-[15px]"
+                className="flex flex-wrap items-baseline justify-between gap-2 px-5 py-3 text-[0.9375rem]"
               >
                 <span className="font-medium">{p.label}</span>
-                <span className="num text-[13px] text-muted">
+                <span className="num text-[0.8125rem] text-muted">
                   {p.clicks} {p.clicks === 1 ? "click" : "clicks"}
                 </span>
               </li>
@@ -539,21 +539,27 @@ function SwapRoom({
           </h2>
           <p className="mt-1 text-muted">Shared only between you and {theirName}.</p>
           {view.results.length === 0 ? (
-            <p className="mt-4 text-[15px] text-muted">No results reported yet. Add yours once the placement has run.</p>
+            <p className="mt-4 text-[0.9375rem] text-muted">No results reported yet. Add yours once the placement has run.</p>
           ) : (
             <ul className="mt-4 space-y-2">
               {view.results.map((r) => (
-                <li key={r.id} className="border-b border-line pb-2 text-[15px]">
+                <li key={r.id} className="border-b border-line pb-2 text-[0.9375rem]">
                   <div className="flex items-baseline justify-between gap-4">
                     <SideTag name={r.side === me ? myName : theirName} side={r.side} />
                     <span className="num font-medium">
                       {r.value.toLocaleString("en-US")} {r.metric}
                     </span>
                   </div>
+                  {/* As of when. Reporting the same measure again replaces the
+                      figure in place with no visible change, so a number from
+                      the first week read as current weeks later. */}
+                  <p className="num mt-0.5 text-[0.8125rem] text-muted">
+                    Reported {formatShortDate(r.createdAt)}
+                  </p>
                   {/* The note was collected by the form below, stored, and shown
                       nowhere, so the one line explaining a surprising number
                       was invisible to the side reading it. */}
-                  {r.note ? <p className="mt-1 text-[14px] text-muted">{r.note}</p> : null}
+                  {r.note ? <p className="mt-1 text-[0.875rem] text-muted">{r.note}</p> : null}
                 </li>
               ))}
             </ul>
@@ -561,7 +567,7 @@ function SwapRoom({
         </div>
         <form action={reportResultAction} className="space-y-4 rounded-xl border border-line bg-white p-5">
           <h3 className="font-semibold">Report what you got from it</h3>
-          <p className="text-[14px] text-muted">
+          <p className="text-[0.875rem] text-muted">
             Reporting the same measure again replaces the figure, so a wrong number is easy to fix.
           </p>
           <div className="grid grid-cols-[1fr_8rem] gap-3">
@@ -593,7 +599,7 @@ function SwapRoom({
 function MissedNote({ description }: { description: string }) {
   const contact = contactEmail();
   return (
-    <p className="mt-3 text-[14px] text-muted">
+    <p className="mt-3 text-[0.875rem] text-muted">
       Checked as missed.{" "}
       {contact ? (
         <>
@@ -616,7 +622,7 @@ function MissedNote({ description }: { description: string }) {
 function ConfirmForm({ token, commitmentId }: { token: string; commitmentId: string }) {
   return (
     <div className="mt-3">
-      <p className="text-[14px] text-muted">Did this actually arrive?</p>
+      <p className="text-[0.875rem] text-muted">Did this actually arrive?</p>
       <div className="mt-2 flex flex-wrap gap-2">
         {["arrived", "missing"].map((said) => (
           <form key={said} action={confirmAction}>
@@ -637,14 +643,14 @@ function CommitmentRow({ c, now, children }: { c: Commitment; now: Date; childre
   return (
     <li className="px-5 py-4">
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-1">
-        <p className="max-w-prose text-[15px] leading-snug">{c.description}</p>
+        <p className="max-w-prose text-[0.9375rem] leading-snug">{c.description}</p>
         <CommitmentState status={c.status} />
       </div>
-      <p className="num mt-1 text-[13px] text-muted">
+      <p className="num mt-1 text-[0.8125rem] text-muted">
         Due {formatDate(c.dueDate)}
         {c.status === "pending" ? ` (${relativeDue(c.dueDate, now)})` : ""}
         {c.confirmedSaid ? (
-        <p className="mt-1 text-[13px] text-muted">
+        <p className="mt-1 text-[0.8125rem] text-muted">
           {c.confirmedSaid === "arrived"
             ? "Confirmed by the other side."
             : "The other side says they didn't see it. We're checking the proof."}

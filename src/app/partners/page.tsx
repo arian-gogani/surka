@@ -80,20 +80,20 @@ export default async function PartnersPage() {
                   {/* The record is the reason this page is worth reading. A
                       directory of names is a directory; a directory of names
                       with what each one delivered is a reason to trust one. */}
-                  <p className="text-[13px] text-muted">
+                  <p className="text-[0.8125rem] text-muted">
                     {KIND_LABEL[l.kind]}
                     <span aria-hidden="true"> &middot; </span>
                     <span className="sr-only">, </span>
                     {describeRecord(l.record)}
                   </p>
                 </div>
-                <dl className="mt-4 grid gap-4 text-[15px] leading-relaxed sm:grid-cols-2">
+                <dl className="mt-4 grid gap-4 text-[0.9375rem] leading-relaxed sm:grid-cols-2">
                   <div>
-                    <dt className="text-[13px] font-medium text-muted">Can offer</dt>
+                    <dt className="text-[0.8125rem] font-medium text-muted">Can offer</dt>
                     <dd className="mt-0.5 break-words">{l.offers}</dd>
                   </div>
                   <div>
-                    <dt className="text-[13px] font-medium text-muted">Looking for</dt>
+                    <dt className="text-[0.8125rem] font-medium text-muted">Looking for</dt>
                     <dd className="mt-0.5 break-words">{l.needs}</dd>
                   </div>
                 </dl>

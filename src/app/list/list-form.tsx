@@ -114,7 +114,7 @@ export function ListForm() {
 
         <div className="flex flex-wrap items-center gap-4">
           <SubmitButton pendingLabel="Adding...">Add me to the list</SubmitButton>
-          <p className="text-[15px] text-muted">You get a private link to edit or remove it. No account.</p>
+          <p className="text-[0.9375rem] text-muted">You get a private link to edit or remove it. No account.</p>
         </div>
       </form>
     </>

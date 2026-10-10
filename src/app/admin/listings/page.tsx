@@ -57,7 +57,7 @@ export default async function ListingsPage({
                     by delisting and re-listing. This is the only place that
                     can be caught. */}
                 {l.sameSite.length > 0 ? (
-                  <p className="mt-2 rounded-md border border-spark/40 bg-spark-wash px-3 py-2 text-[14px] text-[#7a2410]">
+                  <p className="mt-2 rounded-md border border-spark/40 bg-spark-wash px-3 py-2 text-[0.875rem] text-[#7a2410]">
                     Same website as{" "}
                     {l.sameSite.map((other, i) => (
                       <span key={other.partyId}>
@@ -124,7 +124,7 @@ function Entry({ listing, label }: { listing: Listing; label: string }) {
     <>
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <p className="break-words font-medium">{listing.name}</p>
-        <p className="num text-[13px] text-muted">
+        <p className="num text-[0.8125rem] text-muted">
           {KIND_LABEL[listing.kind]}, {label.toLowerCase()} {formatShortDate(listing.listedAt)},{" "}
           {describeRecord(listing.record)}
         </p>
@@ -132,7 +132,7 @@ function Entry({ listing, label }: { listing: Listing; label: string }) {
       {listing.website ? (
         // nofollow and noreferrer: a stranger supplied this, and opening it
         // should not pass anything along.
-        <p className="mt-0.5 break-all text-[13px]">
+        <p className="mt-0.5 break-all text-[0.8125rem]">
           <a
             href={listing.website}
             rel="noopener noreferrer nofollow"
@@ -143,13 +143,13 @@ function Entry({ listing, label }: { listing: Listing; label: string }) {
           </a>
         </p>
       ) : null}
-      <dl className="mt-2 grid gap-2 text-[14px] leading-relaxed sm:grid-cols-2">
+      <dl className="mt-2 grid gap-2 text-[0.875rem] leading-relaxed sm:grid-cols-2">
         <div>
-          <dt className="text-[13px] text-muted">Offers</dt>
+          <dt className="text-[0.8125rem] text-muted">Offers</dt>
           <dd className="break-words">{listing.offers}</dd>
         </div>
         <div>
-          <dt className="text-[13px] text-muted">Wants</dt>
+          <dt className="text-[0.8125rem] text-muted">Wants</dt>
           <dd className="break-words">{listing.needs}</dd>
         </div>
       </dl>

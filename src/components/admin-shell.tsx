@@ -31,14 +31,14 @@ export function AdminShell({
               <Link
                 key={item.href}
                 href={item.href}
-                className="rounded-md px-3 py-2 text-[15px] font-medium text-ink hover:bg-paper"
+                className="rounded-md px-3 py-2 text-[0.9375rem] font-medium text-ink hover:bg-paper"
               >
                 {item.label}
               </Link>
             ))}
           </nav>
           <form action={logoutAction} className="ml-auto">
-            <button type="submit" className="rounded-md px-3 py-2 text-[15px] text-muted hover:text-ink">
+            <button type="submit" className="rounded-md px-3 py-2 text-[0.9375rem] text-muted hover:text-ink">
               Sign out
             </button>
           </form>

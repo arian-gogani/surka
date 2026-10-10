@@ -34,7 +34,7 @@ export function CopyLink({ url, label = "Copy link" }: { url: string; label?: st
           readOnly
           value={url}
           onFocus={(event) => event.currentTarget.select()}
-          className="w-full rounded-md border border-line-strong bg-paper px-3 py-2 text-[13px] text-ink"
+          className="w-full rounded-md border border-line-strong bg-paper px-3 py-2 text-[0.8125rem] text-ink"
         />
       </label>
       <button

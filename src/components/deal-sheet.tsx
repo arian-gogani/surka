@@ -31,7 +31,7 @@ export function DealSheet({
       <div className="border-b border-line px-5 py-4 sm:px-6">
         {/* figcaption, not a p: a figure with no caption element has no
             accessible name, and the text reads as unrelated body copy. */}
-        <figcaption className="text-[13px] text-muted">{caption ?? "Swap proposal"}</figcaption>
+        <figcaption className="text-[0.8125rem] text-muted">{caption ?? "Swap proposal"}</figcaption>
         <h2 className="mt-1 text-lg font-semibold sm:text-xl">{title}</h2>
       </div>
       <div className="grid sm:grid-cols-[1fr_3px_1fr]">
@@ -51,20 +51,20 @@ function SideColumn({ side, data, isViewer }: { side: Side; data: DealSheetSide;
     <section className="flex flex-col px-5 py-5 sm:px-6">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <SideTag name={data.name} side={side} />
-        {isViewer ? <span className="text-[13px] text-muted">You</span> : null}
+        {isViewer ? <span className="text-[0.8125rem] text-muted">You</span> : null}
       </div>
-      {data.detail ? <p className="mt-1 text-[13px] text-muted">{data.detail}</p> : null}
-      <p className="mt-4 text-[13px] font-medium text-muted">Gives</p>
+      {data.detail ? <p className="mt-1 text-[0.8125rem] text-muted">{data.detail}</p> : null}
+      <p className="mt-4 text-[0.8125rem] font-medium text-muted">Gives</p>
       <ul className="mt-1.5 space-y-3">
         {data.gives.map((g, i) => (
           <li key={i}>
-            <p className="text-[15px] leading-snug text-ink">{g.description}</p>
-            <p className="num mt-0.5 text-[13px] text-muted">By {formatDate(g.dueDate)}</p>
+            <p className="text-[0.9375rem] leading-snug text-ink">{g.description}</p>
+            <p className="num mt-0.5 text-[0.8125rem] text-muted">By {formatDate(g.dueDate)}</p>
           </li>
         ))}
       </ul>
       <div className="mt-auto pt-5">
-        <p className="border-t border-line pt-3 text-[13px] text-muted">{data.record}</p>
+        <p className="border-t border-line pt-3 text-[0.8125rem] text-muted">{data.record}</p>
       </div>
     </section>
   );

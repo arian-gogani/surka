@@ -117,9 +117,9 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       <dl className="grid overflow-hidden rounded-xl border border-line bg-white sm:grid-cols-2 lg:grid-cols-3">
         {score.map((s) => (
           <div key={s.label} className="border-b border-line p-5 last:border-b-0 sm:border-r lg:last:border-r-0">
-            <dt className="text-[13px] text-muted">{s.label}</dt>
+            <dt className="text-[0.8125rem] text-muted">{s.label}</dt>
             <dd className="num mt-1 font-display text-2xl font-semibold">{s.value}</dd>
-            <dd className="mt-1 text-[13px] text-muted">{s.note}</dd>
+            <dd className="mt-1 text-[0.8125rem] text-muted">{s.note}</dd>
           </div>
         ))}
       </dl>
@@ -139,8 +139,8 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-line bg-white">
-          <table className="w-full min-w-[720px] text-left text-[15px]">
-            <thead className="border-b border-line text-[13px] text-muted">
+          <table className="w-full min-w-[720px] text-left text-[0.9375rem]">
+            <thead className="border-b border-line text-[0.8125rem] text-muted">
               <tr>
                 <th scope="col" className="px-5 py-3 font-medium">Swap</th>
                 <th scope="col" className="px-5 py-3 font-medium">Status</th>
@@ -155,14 +155,14 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
                     <Link href={`/admin/swaps/${swap.id}`} className="font-medium underline-offset-4 hover:underline">
                       {swap.title}
                     </Link>
-                    <p className="mt-0.5 text-[13px] text-muted">
+                    <p className="mt-0.5 text-[0.8125rem] text-muted">
                       {partyAName} and {partyBName}
                     </p>
                   </td>
                   <td className="px-5 py-4">
                     <StatusPill status={swap.status} />
                   </td>
-                  <td className="px-5 py-4 text-[14px]">
+                  <td className="px-5 py-4 text-[0.875rem]">
                     {/* Checks first: a pending due date used to win, so the one
                         thing actually waiting on the operator was invisible. */}
                     {awaitingCheck > 0 ? (
@@ -172,7 +172,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
                     ) : nextDue && swap.status === "accepted" ? (
                       <>
                         <span className="num">{relativeDue(nextDue.dueDate, now)}</span>
-                        <p className="max-w-[28ch] truncate text-[13px] text-muted">
+                        <p className="max-w-[28ch] truncate text-[0.8125rem] text-muted">
                           {nextDue.side === "a" ? partyAName : partyBName}: {nextDue.description}
                         </p>
                       </>
@@ -180,7 +180,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
                       <span className="text-muted">Nothing due</span>
                     )}
                   </td>
-                  <td className="num px-5 py-4 text-[14px] text-muted">{formatShortDate(swap.createdAt)}</td>
+                  <td className="num px-5 py-4 text-[0.875rem] text-muted">{formatShortDate(swap.createdAt)}</td>
                 </tr>
               ))}
             </tbody>

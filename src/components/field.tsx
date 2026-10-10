@@ -41,7 +41,7 @@ export function Field({
         {control}
       </label>
       {hint ? (
-        <span id={hintId} className="mt-1 block text-[13px] text-muted">
+        <span id={hintId} className="mt-1 block text-[0.8125rem] text-muted">
           {hint}
         </span>
       ) : null}

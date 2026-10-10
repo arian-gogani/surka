@@ -845,7 +845,15 @@ export async function getSwapDetail(db: Db, swapId: string): Promise<SwapDetail>
       db.select().from(swapAccess).where(eq(swapAccess.swapId, swapId)),
       db.select().from(responses).where(eq(responses.swapId, swapId)).orderBy(desc(responses.createdAt)),
       db.select().from(trackingLinks).where(eq(trackingLinks.swapId, swapId)).orderBy(asc(trackingLinks.createdAt)),
-      db.select().from(results).where(eq(results.swapId, swapId)).orderBy(desc(results.createdAt)),
+      // By side and measure, not by when it was reported. Ordering by time
+      // reshuffled the list every time anyone corrected a figure, and
+      // interleaved the two sides, so the comparison this section exists for
+      // had to be reassembled by eye on every visit.
+      db
+        .select()
+        .from(results)
+        .where(eq(results.swapId, swapId))
+        .orderBy(asc(results.side), asc(results.metric)),
       db.select().from(events).where(eq(events.swapId, swapId)).orderBy(desc(events.seq)),
     ]);
   const partyA = partyRows.find((p) => p.id === swap.partyAId);

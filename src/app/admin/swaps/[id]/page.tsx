@@ -86,7 +86,7 @@ export default async function SwapAdminPage({
 
   return (
     <AdminShell error={error} ok={ok}>
-      <Link href="/admin" className="text-[15px] text-muted underline-offset-4 hover:underline">
+      <Link href="/admin" className="text-[0.9375rem] text-muted underline-offset-4 hover:underline">
         All swaps
       </Link>
 
@@ -112,7 +112,7 @@ export default async function SwapAdminPage({
               <p className="font-medium">
                 {side === "b" ? `${possessive(d.partyB.name)} link (send this to the partner)` : `${possessive(d.partyA.name)} link`}
               </p>
-              <p className="mb-3 mt-0.5 text-[13px] text-muted">
+              <p className="mb-3 mt-0.5 text-[0.8125rem] text-muted">
                 {l.viewed ? `Last opened ${STAMP.format(l.viewed)}` : "Not opened yet"}
               </p>
               <CopyLink url={l.url} />
@@ -130,8 +130,8 @@ export default async function SwapAdminPage({
             <li key={c.id} className="flex flex-wrap items-start justify-between gap-4 px-5 py-4">
               <div className="min-w-0 max-w-prose">
                 <SideTag name={name(c.side)} side={c.side} />
-                <p className="mt-1 text-[15px]">{c.description}</p>
-                <p className="num mt-0.5 text-[13px] text-muted">
+                <p className="mt-1 text-[0.9375rem]">{c.description}</p>
+                <p className="num mt-0.5 text-[0.8125rem] text-muted">
                   Due {formatDate(c.dueDate)}
                   {c.status === "pending" && status === "accepted" ? ` (${relativeDue(c.dueDate, now)})` : ""}
                   {c.proofUrl ? (
@@ -149,7 +149,7 @@ export default async function SwapAdminPage({
                     a delivery landed three months late. */}
                 {c.confirmedSaid ? (
                   <p
-                    className={`mt-1 text-[13px] font-medium ${
+                    className={`mt-1 text-[0.8125rem] font-medium ${
                       c.confirmedSaid === "arrived" ? "text-kept-deep" : "text-spark-deep"
                     }`}
                   >
@@ -158,12 +158,12 @@ export default async function SwapAdminPage({
                       : `${name(otherSide(c.side))} says they never saw it. Read the proof before marking this kept.`}
                   </p>
                 ) : c.status === "delivered" ? (
-                  <p className="mt-1 text-[13px] text-muted">
+                  <p className="mt-1 text-[0.8125rem] text-muted">
                     {name(otherSide(c.side))} hasn&apos;t said whether it arrived yet.
                   </p>
                 ) : null}
                 {c.deliveredAt ? (
-                  <p className="num mt-0.5 text-[13px] text-muted">
+                  <p className="num mt-0.5 text-[0.8125rem] text-muted">
                     Delivered {formatShortDate(c.deliveredAt)}
                     {daysUntil(c.dueDate, c.deliveredAt) < 0
                       ? `, ${Math.abs(daysUntil(c.dueDate, c.deliveredAt))} day(s) late`
@@ -233,7 +233,7 @@ export default async function SwapAdminPage({
             Tracking links
           </h2>
           {d.trackingLinks.length === 0 ? (
-            <p className="text-[15px] text-muted">
+            <p className="text-[0.9375rem] text-muted">
               Create one for each placement, so both sides can see what it produced.
             </p>
           ) : (
@@ -241,11 +241,11 @@ export default async function SwapAdminPage({
               {d.trackingLinks.map((l) => (
                 <li key={l.code} className="rounded-xl border border-line bg-white p-4">
                   <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="text-[15px]">
+                    <span className="text-[0.9375rem]">
                       <span className="font-medium">{l.label}</span>
                       <span className="text-muted"> in {possessive(name(l.side))} channel</span>
                     </span>
-                    <span className="num text-[13px] text-muted">
+                    <span className="num text-[0.8125rem] text-muted">
                       {l.clicks} {l.clicks === 1 ? "click" : "clicks"}
                     </span>
                   </div>
@@ -253,7 +253,7 @@ export default async function SwapAdminPage({
                     // No copy button on a dead code. The only reason to copy
                     // one is to publish it, and this one 404s now. The count
                     // stays: those visits happened, and both sides read it.
-                    <p className="text-[13px] text-muted">
+                    <p className="text-[0.8125rem] text-muted">
                       Retired {STAMP.format(l.retiredAt)}. It doesn&apos;t redirect anymore.
                     </p>
                   ) : (
@@ -302,15 +302,22 @@ export default async function SwapAdminPage({
             Results
           </h2>
           {d.results.length === 0 ? (
-            <p className="text-[15px] text-muted">Nothing reported yet. Either side can report from their link.</p>
+            <p className="text-[0.9375rem] text-muted">Nothing reported yet. Either side can report from their link.</p>
           ) : (
             <ul className="space-y-2">
               {d.results.map((r) => (
-                <li key={r.id} className="flex items-baseline justify-between gap-4 border-b border-line pb-2 text-[15px]">
-                  <SideTag name={name(r.side)} side={r.side} />
-                  <span className="num font-medium">
-                    {r.value.toLocaleString("en-US")} {r.metric}
-                  </span>
+                <li key={r.id} className="border-b border-line pb-2 text-[0.9375rem]">
+                  <div className="flex items-baseline justify-between gap-4">
+                    <SideTag name={name(r.side)} side={r.side} />
+                    <span className="num font-medium">
+                      {r.value.toLocaleString("en-US")} {r.metric}
+                    </span>
+                  </div>
+                  {/* Both of these were stored and rendered only on the deal
+                      sheet, so the operator saw a bare number with no date and
+                      no explanation. */}
+                  <p className="num mt-0.5 text-[0.8125rem] text-muted">Reported {STAMP.format(r.createdAt)}</p>
+                  {r.note ? <p className="mt-0.5 text-[0.875rem] text-muted">{r.note}</p> : null}
                 </li>
               ))}
             </ul>
@@ -350,7 +357,7 @@ export default async function SwapAdminPage({
           <h2 id="time" className="text-xl font-semibold">
             Your time
           </h2>
-          <p className="text-[15px] text-muted">
+          <p className="text-[0.9375rem] text-muted">
             <span className="num font-medium text-ink">{d.swap.operatorMinutes} minutes</span> logged on this swap. The
             steps that take longest are the ones to automate first.
           </p>
@@ -369,7 +376,7 @@ export default async function SwapAdminPage({
           </h2>
           <ol className="space-y-2.5">
             {d.events.map((e) => (
-              <li key={e.id} className="grid grid-cols-[9.5rem_1fr] gap-3 text-[14px]">
+              <li key={e.id} className="grid grid-cols-[9.5rem_1fr] gap-3 text-[0.875rem]">
                 <span className="num text-muted">{STAMP.format(e.createdAt)}</span>
                 <span>
                   {e.side ? <span className="font-medium">{name(e.side)}: </span> : null}
@@ -451,7 +458,7 @@ function NextStep({ detail, lastCounter }: { detail: SwapDetail; lastCounter: st
       body = <p>This swap is closed.</p>;
   }
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-ink/15 bg-white px-5 py-4 text-[15px]">
+    <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-ink/15 bg-white px-5 py-4 text-[0.9375rem]">
       {body}
     </div>
   );

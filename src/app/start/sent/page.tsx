@@ -45,7 +45,7 @@ export default async function SentPage({ searchParams }: { searchParams: Promise
         {b ? (
           <section className="mt-10 rounded-xl border-2 border-spark bg-white p-5">
             <h2 className="text-lg font-semibold">Send this one to your partner</h2>
-            <p className="mt-1 text-[15px] text-muted">
+            <p className="mt-1 text-[0.9375rem] text-muted">
               They will see both sides of the trade and can accept, suggest changes, or decline. No account needed.
             </p>
             <div className="mt-4">
@@ -56,7 +56,7 @@ export default async function SentPage({ searchParams }: { searchParams: Promise
 
         <section className="mt-5 rounded-xl border border-line bg-white p-5">
           <h2 className="text-lg font-semibold">This one is yours</h2>
-          <p className="mt-1 text-[15px] text-muted">
+          <p className="mt-1 text-[0.9375rem] text-muted">
             Mark your side delivered here, with a link that proves it, and watch their answer come in.
           </p>
           <div className="mt-4">
@@ -67,7 +67,7 @@ export default async function SentPage({ searchParams }: { searchParams: Promise
           </ButtonLink>
         </section>
 
-        <p className="mt-8 max-w-prose text-[15px] text-muted">
+        <p className="mt-8 max-w-prose text-[0.9375rem] text-muted">
           {b ? "Keep both links somewhere safe." : "Keep your link somewhere safe."} Anyone holding a link can act
           as that side of the swap, so treat {b ? "them" : "it"} the way you would a shared document link.
         </p>

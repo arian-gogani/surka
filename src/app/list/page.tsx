@@ -29,7 +29,7 @@ export default function ListPage() {
           introduction. When one is agreed, Surka holds both sides to the dates and checks that each part
           actually shipped.
         </p>
-        <p className="mt-4 max-w-prose text-[15px] leading-relaxed text-muted">
+        <p className="mt-4 max-w-prose text-[0.9375rem] leading-relaxed text-muted">
           Your name, what kind of business you are, your website and these two answers are public. Your email
           never is. Every swap you complete adds to the record shown next to your name, which is the part a
           listing cannot write about itself.
@@ -42,7 +42,7 @@ export default function ListPage() {
           describing your asking price, and that a person reads this before
           anyone sees it. A sceptic notices the missing half of a trade.
         */}
-        <ul className="mt-6 max-w-prose space-y-2 text-[15px] leading-relaxed text-muted">
+        <ul className="mt-6 max-w-prose space-y-2 text-[0.9375rem] leading-relaxed text-muted">
           <li>
             Strangers can propose swaps to you. You can decline any of them, and declining costs you nothing.
           </li>

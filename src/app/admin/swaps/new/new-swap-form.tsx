@@ -70,7 +70,7 @@ export function NewSwapForm({
           </Field>
         </div>
         <TermsFields today={today} names={{ a: "Proposing side", b: "Partner" }} rows={state.rows ?? defaultRows} />
-        <p className="text-[13px] text-muted">
+        <p className="text-[0.8125rem] text-muted">
           Both sides must give something. When sizes don&apos;t match, the smaller side gives more, like two features
           instead of one.
         </p>

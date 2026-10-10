@@ -14,7 +14,7 @@ const VARIANT: Record<Variant, string> = {
 };
 
 const BASE =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 text-[15px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 text-[0.9375rem] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50";
 
 export function Button({
   variant = "quiet",
@@ -53,7 +53,7 @@ const STATUS_STYLE: Record<SwapStatus, string> = {
 
 export function StatusPill({ status }: { status: SwapStatus }) {
   return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[13px] font-medium ${STATUS_STYLE[status]}`}>
+    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[0.8125rem] font-medium ${STATUS_STYLE[status]}`}>
       {STATUS_LABEL[status]}
     </span>
   );
@@ -68,7 +68,7 @@ const COMMITMENT_STYLE: Record<CommitmentStatus, string> = {
 
 export function CommitmentState({ status }: { status: CommitmentStatus }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 text-[13px] font-medium ${COMMITMENT_STYLE[status]}`}>
+    <span className={`inline-flex items-center gap-1.5 text-[0.8125rem] font-medium ${COMMITMENT_STYLE[status]}`}>
       {status === "kept" ? (
         <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
           <path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />

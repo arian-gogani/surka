@@ -59,7 +59,7 @@ export default function Home() {
           <a
             href={mailto}
             aria-label="Talk to us by email (opens your mail app)"
-            className="-mx-2 inline-flex min-h-11 items-center px-2 text-[15px] font-medium text-ink underline-offset-4 hover:underline"
+            className="-mx-2 inline-flex min-h-11 items-center px-2 text-[0.9375rem] font-medium text-ink underline-offset-4 hover:underline"
           >
             Talk to us
           </a>
@@ -80,7 +80,7 @@ export default function Home() {
             <div className="mt-8 flex flex-wrap gap-3">
               <a
                 href="/start"
-                className="inline-flex min-h-11 items-center rounded-md bg-spark px-5 text-[15px] font-medium text-ink hover:bg-[#ff6d4d]"
+                className="inline-flex min-h-11 items-center rounded-md bg-spark px-5 text-[0.9375rem] font-medium text-ink hover:bg-[#ff6d4d]"
               >
                 Start a swap
               </a>
@@ -89,12 +89,12 @@ export default function Home() {
                   this page existed they had nowhere to go. */}
               <a
                 href="/partners"
-                className="inline-flex min-h-11 items-center rounded-md border border-line-strong bg-white px-5 text-[15px] font-medium text-ink hover:border-ink"
+                className="inline-flex min-h-11 items-center rounded-md border border-line-strong bg-white px-5 text-[0.9375rem] font-medium text-ink hover:border-ink"
               >
                 Find a partner
               </a>
             </div>
-            <p className="mt-4 text-[15px] text-muted">
+            <p className="mt-4 text-[0.9375rem] text-muted">
               No account, for you or for them. <a href="#how" className="underline underline-offset-4">See how a swap runs</a>.
             </p>
           </div>
@@ -200,7 +200,7 @@ export default function Home() {
             </div>
             <a
               href="/start"
-              className="inline-flex min-h-11 shrink-0 items-center rounded-md bg-spark px-5 text-[15px] font-medium text-ink hover:bg-[#ff6d4d]"
+              className="inline-flex min-h-11 shrink-0 items-center rounded-md bg-spark px-5 text-[0.9375rem] font-medium text-ink hover:bg-[#ff6d4d]"
             >
               Start a swap
             </a>
@@ -209,7 +209,7 @@ export default function Home() {
       </main>
 
       <footer className="border-t border-line">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-5 py-8 text-[14px] text-muted sm:px-8">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-5 py-8 text-[0.875rem] text-muted sm:px-8">
           <Logo size={20} />
           <p>Every swap, both sides grow.</p>
         </div>
