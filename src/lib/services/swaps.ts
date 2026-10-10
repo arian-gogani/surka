@@ -52,6 +52,7 @@ import {
   resultInput,
   swapInput,
   trackingLinkInput,
+  withdrawInput,
 } from "../validation";
 
 function parse<T extends z.ZodType>(schema: T, input: unknown): z.output<T> {
@@ -989,6 +990,60 @@ export async function setSideEmail(db: Db, token: string, input: unknown): Promi
 }
 
 /**
+ * The owing side says in advance that this one will not happen.
+ *
+ * The reminder email tells people to do exactly this, and until now there was
+ * nothing to do it with. A reminder whose only possible response is "deliver"
+ * means whoever cannot deliver goes quiet, which leaves the partner waiting on
+ * something that is not coming and the operator chasing it.
+ *
+ * Only your own side, and only before you have claimed delivery. It does not
+ * touch the record: the deadline passing already counts an undelivered
+ * commitment, and making early notice cost more than silence would be the
+ * wrong way round. What it buys is that the partner finds out now and the
+ * reminders stop.
+ */
+export async function withdrawCommitment(
+  db: Db,
+  token: string,
+  commitmentId: string,
+  note: unknown,
+  now = new Date(),
+): Promise<void> {
+  const access = await requireAccess(db, token);
+  const swap = await requireSwap(db, access.swapId);
+  if (!isUuid(commitmentId)) throw new SurkaError("That commitment isn't part of this swap.", "not_found");
+
+  const [commitment] = await db
+    .select()
+    .from(commitments)
+    .where(and(eq(commitments.id, commitmentId), eq(commitments.swapId, swap.id)))
+    .limit(1);
+  if (!commitment) throw new SurkaError("That commitment isn't part of this swap.", "not_found");
+  if (commitment.side !== access.side) {
+    throw new SurkaError("You can only do this for what you agreed to deliver.", "not_allowed");
+  }
+  if (commitment.status !== "pending") {
+    throw new SurkaError(
+      commitment.status === "delivered"
+        ? "You've already marked this delivered. Email us if that was wrong."
+        : "This one has already been checked.",
+      "conflict",
+    );
+  }
+
+  const reason = parse(withdrawInput, { note }).note;
+  await db
+    .update(commitments)
+    .set({ withdrawnAt: commitment.withdrawnAt ?? now, withdrawnNote: reason })
+    .where(eq(commitments.id, commitment.id));
+  await logEvent(db, swap.id, "withdrawn", {
+    side: access.side,
+    detail: reason ? `${commitment.description}: ${reason}` : commitment.description,
+  });
+}
+
+/**
  * The side that was owed something says whether it arrived.
  *
  * The delivering side writes its own proof link and the operator judges it, so
@@ -1091,6 +1146,11 @@ export async function markDelivered(
       // something nobody looked at.
       confirmedSaid: null,
       confirmedAt: null,
+      // And clear a call-off. Changing your mind and shipping it anyway is a
+      // good outcome, but the row would otherwise read "called off" next to a
+      // proof link, which is a contradiction on the page both sides read.
+      withdrawnAt: null,
+      withdrawnNote: null,
     })
     .where(and(eq(commitments.id, commitment.id), eq(commitments.status, commitment.status)))
     .returning({ id: commitments.id });

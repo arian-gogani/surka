@@ -20,6 +20,7 @@ import {
   reportResultAction,
   respondAction,
   setEmailAction,
+  withdrawAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -426,6 +427,12 @@ function SwapRoom({
         <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-white">
           {mine.map((c) => (
             <CommitmentRow key={c.id} c={c} now={now}>
+              {/* The reminder email tells people to come here and say so if it
+                  is not going to happen, and until now there was nothing to
+                  say it with. */}
+              {c.status === "pending" && !c.withdrawnAt ? (
+                <WithdrawForm token={view.token} commitmentId={c.id} />
+              ) : null}
               {c.status === "pending" || c.status === "delivered" ? (
                 // Delivered rows keep the form so a mistyped proof link can be
                 // replaced before anyone reads it.
@@ -619,6 +626,28 @@ function MissedNote({ description }: { description: string }) {
   );
 }
 
+function WithdrawForm({ token, commitmentId }: { token: string; commitmentId: string }) {
+  return (
+    <details className="mt-3 text-[0.875rem]">
+      <summary className="cursor-pointer text-muted underline underline-offset-4">
+        This one isn&apos;t going to happen
+      </summary>
+      <form action={withdrawAction} className="mt-3 space-y-3">
+        <p className="max-w-prose text-muted">
+          We&apos;ll tell your partner and stop reminding you. It counts the same as a deadline passing, no
+          worse, so saying it now costs you nothing and lets them stop waiting.
+        </p>
+        <Field label="Anything you want them to know?" hint="Optional.">
+          <textarea name="note" rows={2} maxLength={500} className="field" />
+        </Field>
+        <input type="hidden" name="token" value={token} />
+        <input type="hidden" name="commitmentId" value={commitmentId} />
+        <Button type="submit">Tell them</Button>
+      </form>
+    </details>
+  );
+}
+
 function ConfirmForm({ token, commitmentId }: { token: string; commitmentId: string }) {
   return (
     <div className="mt-3">
@@ -649,7 +678,12 @@ function CommitmentRow({ c, now, children }: { c: Commitment; now: Date; childre
       <p className="num mt-1 text-[0.8125rem] text-muted">
         Due {formatDate(c.dueDate)}
         {c.status === "pending" ? ` (${relativeDue(c.dueDate, now)})` : ""}
-        {c.confirmedSaid ? (
+        {c.withdrawnAt ? (
+        <p className="mt-1 text-[0.8125rem] text-spark-deep">
+          Called off by the side that owed it.{c.withdrawnNote ? ` "${c.withdrawnNote}"` : ""}
+        </p>
+      ) : null}
+      {c.confirmedSaid ? (
         <p className="mt-1 text-[0.8125rem] text-muted">
           {c.confirmedSaid === "arrived"
             ? "Confirmed by the other side."

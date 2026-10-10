@@ -147,6 +147,12 @@ export default async function SwapAdminPage({
                     this screen. deliveredAt was stored and compared to
                     nothing, so the operator had to read the timeline to learn
                     a delivery landed three months late. */}
+                {c.withdrawnAt ? (
+                  <p className="mt-1 text-[0.8125rem] font-medium text-spark-deep">
+                    {name(c.side)} called this off {formatShortDate(c.withdrawnAt)}.
+                    {c.withdrawnNote ? ` "${c.withdrawnNote}"` : ""} Reminders have stopped.
+                  </p>
+                ) : null}
                 {c.confirmedSaid ? (
                   <p
                     className={`mt-1 text-[0.8125rem] font-medium ${

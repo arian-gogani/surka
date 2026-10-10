@@ -275,6 +275,26 @@ async function run() {
   const room = await get(`/d/${proposerToken}`);
   const commitmentId = room.html.match(/name="commitmentId" value="([0-9a-f-]{36})"/)?.[1];
   check(Boolean(commitmentId), "proposer sees a delivery form for its commitment");
+  // The reminder tells people to come here and say so if it is not happening,
+  // so there has to be something here that does it.
+  const roomBefore = await get(`/d/${proposerToken}`);
+  check(visible(roomBefore.html).includes("going to happen"), "a side can say it will not happen");
+  const calledOff = await submit(`/d/${proposerToken}`, "Tell them", {
+    token: proposerToken,
+    commitmentId,
+    note: "Slipped to November.",
+  });
+  check(query(calledOff.location, "ok")?.includes("stop waiting") ?? false, "calling it off is recorded");
+  check(
+    visible((await get(`/d/${partnerToken}`)).html).includes("Called off by the side that owed it"),
+    "the partner is told",
+  );
+  check(
+    visible((await get(swapPath)).html).includes("called this off"),
+    "the operator is told, with reminders stopped",
+  );
+
+
   const badProof = await submit(`/d/${proposerToken}`, 'name="proofUrl"', {
     token: proposerToken,
     commitmentId,

@@ -85,6 +85,13 @@
       "when": 1791652683389,
       "tag": "0011_counterparty_confirmation",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791654093535,
+      "tag": "0012_withdraw_commitment",
+      "breakpoints": true
     }
   ]
 }

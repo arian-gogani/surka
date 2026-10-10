@@ -1,4 +1,4 @@
-import { and, eq, inArray, lte } from "drizzle-orm";
+import { and, eq, inArray, isNull, lte } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Db } from "@/db/client";
 import {
@@ -65,6 +65,10 @@ export async function runReminders(db: Db, send: EmailSender, now = new Date()):
       and(
         eq(swaps.status, "accepted"),
         eq(commitments.status, "pending"),
+        // They have already told us it is not coming. Chasing it anyway is
+        // both pointless and rude, and it is the reason the message offers
+        // standing down as an option at all.
+        isNull(commitments.withdrawnAt),
         // The furthest-out window is 3 days, so anything later cannot be due a
         // reminder yet. Without this the run fetched every pending commitment
         // of every accepted swap, scanned them all, and threw most away.

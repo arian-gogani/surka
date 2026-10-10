@@ -155,6 +155,9 @@ export const listingInput = z
     path: ["website"],
   });
 
+/** Why a side is standing down from a commitment. Optional: saying so at all is the point. */
+export const withdrawInput = z.object({ note: optionalText(500) });
+
 /** Just the address, for the reminders form on an agreed swap. */
 export const sideEmailInput = z.object({ email });
 

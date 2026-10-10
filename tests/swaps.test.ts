@@ -41,6 +41,7 @@ import {
   respond,
   retireTrackingLink,
   verifyCommitment,
+  withdrawCommitment,
 } from "@/lib/services/swaps";
 
 const NOW = new Date("2026-10-02T15:00:00Z");
@@ -254,6 +255,52 @@ describe("delivery and checking", () => {
       markDelivered(db, tokens.a, mine.id, { proofUrl: "https://clinicscheduler.example/third" }, later),
       "conflict",
     );
+  });
+
+  it("lets a side call off its own commitment, and stops chasing it", async () => {
+    const { swap, tokens, mine, theirs } = await acceptedSwap();
+    // Only your own, and never the other side's.
+    await expectSurka(withdrawCommitment(db, tokens.b, mine.id, null, NOW), "not_allowed");
+
+    const outbox: EmailMessage[] = [];
+    expect((await runReminders(db, async (m) => void outbox.push(m), NOW)).sent).toBe(1);
+
+    await withdrawCommitment(db, tokens.a, mine.id, "The feature slipped to November.", NOW);
+    const seen = (await getSwapForToken(db, tokens.b, NOW)).commitments.find((c) => c.id === mine.id);
+    expect(seen?.withdrawnAt).toEqual(NOW);
+    expect(seen?.withdrawnNote).toBe("The feature slipped to November.");
+
+    // Chasing something they already said is not coming is pointless and rude.
+    const later = new Date("2026-10-04T15:00:00Z");
+    const run = await runReminders(db, async (m) => void outbox.push(m), later);
+    expect(run.sent).toBe(0);
+
+    // The record is untouched: the deadline passing already counts an
+    // undelivered commitment, and early notice must not cost more than
+    // silence or nobody would ever give it.
+    const { events } = await getSwapDetail(db, swap.id);
+    expect(events.map((e) => e.type)).toContain("withdrawn");
+    expect(theirs.status).toBe("pending");
+  });
+
+  it("clears a call-off when the side ships it after all", async () => {
+    // Changing your mind and delivering is a good outcome, but the row would
+    // otherwise read "called off" next to a proof link, on the page both sides
+    // read.
+    const { tokens, mine } = await acceptedSwap();
+    await withdrawCommitment(db, tokens.a, mine.id, "Probably not happening.", NOW);
+    await markDelivered(db, tokens.a, mine.id, { proofUrl: "https://a.example/x" }, NOW);
+
+    const after = (await getSwapForToken(db, tokens.b, NOW)).commitments.find((c) => c.id === mine.id);
+    expect(after?.status).toBe("delivered");
+    expect(after?.withdrawnAt).toBeNull();
+    expect(after?.withdrawnNote).toBeNull();
+  });
+
+  it("will not let a side call off something it already delivered", async () => {
+    const { tokens, mine } = await acceptedSwap();
+    await markDelivered(db, tokens.a, mine.id, { proofUrl: "https://a.example/x" }, NOW);
+    await expectSurka(withdrawCommitment(db, tokens.a, mine.id, null, NOW), "conflict");
   });
 
   it("lets only the side that was owed something say whether it arrived", async () => {

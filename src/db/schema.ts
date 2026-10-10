@@ -169,6 +169,21 @@ export const commitments = pgTable(
      */
     confirmedSaid: text("confirmed_said").$type<Confirmation>(),
     confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    /**
+     * When the owing side said in advance that this will not happen.
+     *
+     * A reminder whose only possible response is "deliver" means whoever
+     * cannot deliver goes quiet, and silence is the worst outcome for the
+     * partner, who keeps waiting, and for the operator, who keeps chasing.
+     *
+     * Deliberately not a status, and deliberately no effect on the record
+     * beyond what the deadline passing would do anyway. Telling your partner
+     * early is better behaviour than ghosting, so it must not cost more: both
+     * end at the same place, and the difference is that one of them lets the
+     * other side stop waiting.
+     */
+    withdrawnAt: timestamp("withdrawn_at", { withTimezone: true }),
+    withdrawnNote: text("withdrawn_note"),
     verifiedAt: timestamp("verified_at", { withTimezone: true }),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: createdAt(),
