@@ -21,6 +21,7 @@ import {
   partyRecord,
   partyRecords,
   claimParty,
+  confirmDelivery,
   createListing,
   getListingForToken,
   approveListing,
@@ -253,6 +254,52 @@ describe("delivery and checking", () => {
       markDelivered(db, tokens.a, mine.id, { proofUrl: "https://clinicscheduler.example/third" }, later),
       "conflict",
     );
+  });
+
+  it("lets only the side that was owed something say whether it arrived", async () => {
+    const { tokens, mine, theirs } = await acceptedSwap();
+    // Nothing to answer until they say they delivered.
+    await expectSurka(confirmDelivery(db, tokens.b, mine.id, "arrived", NOW), "conflict");
+
+    await markDelivered(db, tokens.a, mine.id, { proofUrl: "https://clinicscheduler.example/promo" }, NOW);
+    // Side A owed it, so side A cannot vouch for it.
+    await expectSurka(confirmDelivery(db, tokens.a, mine.id, "arrived", NOW), "not_allowed");
+    // And nobody can answer for a commitment on another swap.
+    await expectSurka(confirmDelivery(db, tokens.b, theirs.id, "arrived", NOW), "not_allowed");
+
+    await confirmDelivery(db, tokens.b, mine.id, "arrived", NOW);
+    const seen = (await getSwapForToken(db, tokens.a, NOW)).commitments.find((c) => c.id === mine.id);
+    expect(seen?.confirmedSaid).toBe("arrived");
+    expect(seen?.confirmedAt).toEqual(NOW);
+  });
+
+  it("does not let a dispute block the operator, and records both answers", async () => {
+    const { swap, tokens, mine } = await acceptedSwap();
+    await markDelivered(db, tokens.a, mine.id, { proofUrl: "https://clinicscheduler.example/promo" }, NOW);
+    await confirmDelivery(db, tokens.b, mine.id, "missing", NOW);
+
+    // Requiring agreement would let a partner withhold credit by saying
+    // nothing, which is ghosting pointed the other way.
+    await verifyCommitment(db, mine.id, "kept", NOW);
+    const after = (await getSwapForToken(db, tokens.a, NOW)).commitments.find((c) => c.id === mine.id);
+    expect(after?.status).toBe("kept");
+    expect(after?.confirmedSaid).toBe("missing");
+
+    const { events } = await getSwapDetail(db, swap.id);
+    expect(events.map((e) => e.type)).toContain("disputed");
+  });
+
+  it("drops a stale answer when the proof link is replaced", async () => {
+    const { tokens, mine } = await acceptedSwap();
+    await markDelivered(db, tokens.a, mine.id, { proofUrl: "https://clinicscheduler.example/wrong" }, NOW);
+    await confirmDelivery(db, tokens.b, mine.id, "missing", NOW);
+
+    // They judged a different link. Leaving "missing" attached to replacement
+    // proof would be a verdict on something nobody looked at.
+    await markDelivered(db, tokens.a, mine.id, { proofUrl: "https://clinicscheduler.example/right" }, NOW);
+    const after = (await getSwapForToken(db, tokens.b, NOW)).commitments.find((c) => c.id === mine.id);
+    expect(after?.confirmedSaid).toBeNull();
+    expect(after?.confirmedAt).toBeNull();
   });
 
   it("completes the swap when every commitment is checked, and builds records", async () => {

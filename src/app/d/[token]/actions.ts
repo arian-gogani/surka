@@ -5,7 +5,7 @@ import { getDb } from "@/db/client";
 import type { SwapStatus } from "@/db/schema";
 import { messageFor } from "@/lib/errors";
 import { signNotice } from "@/lib/notice";
-import { claimParty, markDelivered, reportResult, respond, setSideEmail } from "@/lib/services/swaps";
+import { claimParty, confirmDelivery, markDelivered, reportResult, respond, setSideEmail } from "@/lib/services/swaps";
 
 async function backTo(token: string, params: { ok?: string; error?: string }): Promise<never> {
   const signed = await signNotice(params);
@@ -106,4 +106,25 @@ export async function claimListingAction(formData: FormData) {
     ok: "This page is yours. Keep its link: it's how you manage your listing, and there's no password to reset.",
   });
   redirect(`/p/${own}?${new URLSearchParams(signed)}`);
+}
+
+export async function confirmAction(formData: FormData) {
+  const token = String(formData.get("token") ?? "");
+  const said = String(formData.get("said") ?? "");
+  try {
+    await confirmDelivery(
+      await getDb(),
+      token,
+      String(formData.get("commitmentId") ?? ""),
+      said === "arrived" ? "arrived" : "missing",
+    );
+  } catch (error) {
+    return backTo(token, { error: messageFor(error) });
+  }
+  return backTo(token, {
+    ok:
+      said === "arrived"
+        ? "Thanks. We've recorded that it arrived, and it counts toward their record."
+        : "Thanks. We've recorded that you didn't see it, and we'll look at their proof before deciding.",
+  });
 }

@@ -78,6 +78,13 @@
       "when": 1791395411734,
       "tag": "0010_retire_tracking_link",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791652683389,
+      "tag": "0011_counterparty_confirmation",
+      "breakpoints": true
     }
   ]
 }

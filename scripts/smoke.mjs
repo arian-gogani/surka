@@ -288,6 +288,23 @@ async function run() {
   });
   check(query(delivered.location, "ok")?.startsWith("Marked delivered") ?? false, "proposer marks it delivered");
 
+  // The side that was owed it answers, through the real form.
+  const partnerSees = await get(`/d/${partnerToken}`);
+  check(visible(partnerSees.html).includes("Did this actually arrive?"), "the other side is asked");
+  const confirmed = await submit(`/d/${partnerToken}`, "Yes, it arrived", {
+    token: partnerToken,
+    commitmentId,
+  });
+  check(query(confirmed.location, "ok")?.includes("arrived") ?? false, "the other side confirms it");
+  check(
+    visible((await get(swapPath)).html).includes("confirms it arrived"),
+    "the operator sees the answer where they decide",
+  );
+  check(
+    visible((await get(`/d/${proposerToken}`)).html).includes("Confirmed by the other side"),
+    "the delivering side sees it too",
+  );
+
   const operatorView = await get(swapPath);
   const toCheck = [...operatorView.html.matchAll(/name="commitmentId" value="([0-9a-f-]{36})"/g)].map((m) => m[1]);
   check(toCheck.length === 2, "operator can check both commitments");

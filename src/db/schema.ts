@@ -26,6 +26,14 @@ export type SwapStatus =
   | "cancelled";
 export type CommitmentStatus = "pending" | "delivered" | "kept" | "missed";
 /**
+ * What the side that was owed something says about it.
+ *
+ * The delivering side supplies its own proof link and the operator judges it,
+ * so the one party who actually knows whether the newsletter section ran was
+ * never asked. This is that answer.
+ */
+export type Confirmation = "arrived" | "missing";
+/**
  * Who has to get the partner their link.
  *
  * "directory" is the case where nobody does: the proposal was aimed at a
@@ -151,6 +159,16 @@ export const commitments = pgTable(
     proofUrl: text("proof_url"),
     status: text("status").$type<CommitmentStatus>().notNull().default("pending"),
     deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    /**
+     * The counterparty's answer, and when they gave it.
+     *
+     * Deliberately not a gate on the operator's check. Requiring it would let
+     * a partner withhold credit by saying nothing, which is the same ghosting
+     * problem pointed the other way. It is evidence put in front of the person
+     * deciding, and visible to both sides, which is what it is good for.
+     */
+    confirmedSaid: text("confirmed_said").$type<Confirmation>(),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
     verifiedAt: timestamp("verified_at", { withTimezone: true }),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: createdAt(),

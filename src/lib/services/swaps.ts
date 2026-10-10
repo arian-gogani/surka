@@ -15,6 +15,7 @@ import {
   trackingLinks,
   type Commitment,
   type CommitmentStatus,
+  type Confirmation,
   type PartyKind,
   type OpenedBy,
   type Party,
@@ -979,6 +980,60 @@ export async function setSideEmail(db: Db, token: string, input: unknown): Promi
   await logEvent(db, swap.id, "email_set", { side: access.side });
 }
 
+/**
+ * The side that was owed something says whether it arrived.
+ *
+ * The delivering side writes its own proof link and the operator judges it, so
+ * the one party who actually knows whether the section ran was never asked.
+ *
+ * Only the other side may answer, and only while the delivery is unchecked. It
+ * is not a gate: the operator can still mark it kept over a "missing", because
+ * requiring agreement would let a partner withhold credit by saying nothing,
+ * which is ghosting pointed the other way. Both answers sit on the timeline and
+ * on the operator's screen, which is what makes them worth having.
+ */
+export async function confirmDelivery(
+  db: Db,
+  token: string,
+  commitmentId: string,
+  said: Confirmation,
+  now = new Date(),
+): Promise<void> {
+  if (said !== "arrived" && said !== "missing") {
+    throw new SurkaError("Say whether it arrived or not.", "invalid");
+  }
+  const access = await requireAccess(db, token);
+  const swap = await requireSwap(db, access.swapId);
+  if (!isUuid(commitmentId)) throw new SurkaError("That commitment isn't part of this swap.", "not_found");
+
+  const [commitment] = await db
+    .select()
+    .from(commitments)
+    .where(and(eq(commitments.id, commitmentId), eq(commitments.swapId, swap.id)))
+    .limit(1);
+  if (!commitment) throw new SurkaError("That commitment isn't part of this swap.", "not_found");
+  if (commitment.side === access.side) {
+    throw new SurkaError("You can only answer for what the other side owed you.", "not_allowed");
+  }
+  if (commitment.status !== "delivered") {
+    throw new SurkaError(
+      commitment.status === "pending"
+        ? "They haven't marked this delivered yet."
+        : "This one has already been checked.",
+      "conflict",
+    );
+  }
+
+  await db
+    .update(commitments)
+    .set({ confirmedSaid: said, confirmedAt: now })
+    .where(eq(commitments.id, commitment.id));
+  await logEvent(db, swap.id, said === "arrived" ? "confirmed" : "disputed", {
+    side: access.side,
+    detail: commitment.description,
+  });
+}
+
 /** A side marks its own commitment delivered, with a link that proves it. */
 export async function markDelivered(
   db: Db,
@@ -1023,6 +1078,11 @@ export async function markDelivered(
       // Keep the first delivery time. Re-pasting a corrected proof link should
       // not make a commitment delivered on time look late, or the reverse.
       deliveredAt: commitment.deliveredAt ?? now,
+      // Clear the counterparty's answer. They judged a different link, and
+      // leaving "missing" attached to replacement proof would be a verdict on
+      // something nobody looked at.
+      confirmedSaid: null,
+      confirmedAt: null,
     })
     .where(and(eq(commitments.id, commitment.id), eq(commitments.status, commitment.status)))
     .returning({ id: commitments.id });

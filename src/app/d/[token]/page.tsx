@@ -13,7 +13,14 @@ import { verifyNotice } from "@/lib/notice";
 import { sheetSide } from "@/lib/present";
 import { getSwapForToken, type SideView } from "@/lib/services/swaps";
 import { otherSide } from "@/lib/swap-rules";
-import { claimListingAction, deliverAction, reportResultAction, respondAction, setEmailAction } from "./actions";
+import {
+  claimListingAction,
+  confirmAction,
+  deliverAction,
+  reportResultAction,
+  respondAction,
+  setEmailAction,
+} from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -441,7 +448,12 @@ function SwapRoom({
         </h2>
         <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-white">
           {theirs.map((c) => (
-            <CommitmentRow key={c.id} c={c} now={now} />
+            <CommitmentRow key={c.id} c={c} now={now}>
+              {/* The one party who actually knows whether this ran. The
+                  delivering side writes its own proof link, so until now
+                  nobody asked the side it was owed to. */}
+              {c.status === "delivered" ? <ConfirmForm token={view.token} commitmentId={c.id} /> : null}
+            </CommitmentRow>
           ))}
         </ul>
       </section>
@@ -601,6 +613,26 @@ function MissedNote({ description }: { description: string }) {
   );
 }
 
+function ConfirmForm({ token, commitmentId }: { token: string; commitmentId: string }) {
+  return (
+    <div className="mt-3">
+      <p className="text-[14px] text-muted">Did this actually arrive?</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {["arrived", "missing"].map((said) => (
+          <form key={said} action={confirmAction}>
+            <input type="hidden" name="token" value={token} />
+            <input type="hidden" name="commitmentId" value={commitmentId} />
+            <input type="hidden" name="said" value={said} />
+            <Button type="submit" variant={said === "arrived" ? "kept" : "danger"}>
+              {said === "arrived" ? "Yes, it arrived" : "No, I didn't see it"}
+            </Button>
+          </form>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function CommitmentRow({ c, now, children }: { c: Commitment; now: Date; children?: React.ReactNode }) {
   return (
     <li className="px-5 py-4">
@@ -611,7 +643,14 @@ function CommitmentRow({ c, now, children }: { c: Commitment; now: Date; childre
       <p className="num mt-1 text-[13px] text-muted">
         Due {formatDate(c.dueDate)}
         {c.status === "pending" ? ` (${relativeDue(c.dueDate, now)})` : ""}
-        {c.proofUrl ? (
+        {c.confirmedSaid ? (
+        <p className="mt-1 text-[13px] text-muted">
+          {c.confirmedSaid === "arrived"
+            ? "Confirmed by the other side."
+            : "The other side says they didn't see it. We're checking the proof."}
+        </p>
+      ) : null}
+      {c.proofUrl ? (
           <>
             {", "}
             {/* Every proof link read just "proof", so a screen reader's links

@@ -12,7 +12,7 @@ import { appUrl } from "@/lib/env";
 import { SurkaError } from "@/lib/errors";
 import { getSwapDetail, type SwapDetail } from "@/lib/services/swaps";
 import { possessive } from "@/lib/present";
-import { canTransition, isFinal, isResolved, termsEditable } from "@/lib/swap-rules";
+import { canTransition, isFinal, isResolved, otherSide, termsEditable } from "@/lib/swap-rules";
 import {
   addLinkAction,
   addResultAction,
@@ -147,6 +147,21 @@ export default async function SwapAdminPage({
                     this screen. deliveredAt was stored and compared to
                     nothing, so the operator had to read the timeline to learn
                     a delivery landed three months late. */}
+                {c.confirmedSaid ? (
+                  <p
+                    className={`mt-1 text-[13px] font-medium ${
+                      c.confirmedSaid === "arrived" ? "text-kept-deep" : "text-spark-deep"
+                    }`}
+                  >
+                    {c.confirmedSaid === "arrived"
+                      ? `${name(otherSide(c.side))} confirms it arrived.`
+                      : `${name(otherSide(c.side))} says they never saw it. Read the proof before marking this kept.`}
+                  </p>
+                ) : c.status === "delivered" ? (
+                  <p className="mt-1 text-[13px] text-muted">
+                    {name(otherSide(c.side))} hasn&apos;t said whether it arrived yet.
+                  </p>
+                ) : null}
                 {c.deliveredAt ? (
                   <p className="num mt-0.5 text-[13px] text-muted">
                     Delivered {formatShortDate(c.deliveredAt)}
