@@ -3,17 +3,13 @@
 import { useActionState } from "react";
 import { SubmitButton } from "@/components/submit-button";
 import { Field, Notice } from "@/components/ui";
-import { KIND_OPTIONS } from "@/lib/present";
 import { startSwapAction } from "./actions";
 import { EMPTY_START, type StartField } from "./state";
-
 
 export interface Prefill {
   from: string | null;
   name: string;
-  kind: string;
   website: string;
-  email: string;
   /**
    * Whether the link they arrived with may rewrite the business.
    *
@@ -24,19 +20,25 @@ export interface Prefill {
   editable: boolean;
 }
 
-/**
- * A client component only so a rejected submit can hand back what was typed.
- * useActionState degrades: with JavaScript off the form posts normally and the
- * server renders the same state, so nothing here depends on the script loading.
- */
 /** A business from the directory this proposal is aimed at. */
 export interface Target {
   id: string;
   name: string;
-  kind: string;
   needs: string;
 }
 
+/**
+ * A client component only so a rejected submit can hand back what was typed.
+ * useActionState degrades: with JavaScript off the form posts normally and the
+ * server renders the same state, so nothing here depends on the script loading.
+ *
+ * Ordered certainty first, the one hard thing in the middle, and the title
+ * last. Nothing comes back until the whole form posts, so every field has to
+ * be answerable with no feedback and abandoning at field six costs all six.
+ * Naming a deal before describing either half is asking for a title for a
+ * thing that does not exist yet; after both halves are written it takes five
+ * seconds, which is the right thing to be doing just before the button.
+ */
 export function StartForm({
   prefill,
   target,
@@ -51,6 +53,7 @@ export function StartForm({
   const [state, action] = useActionState(startSwapAction, EMPTY_START);
   // Prefer what they just typed, then the business carried over from a link.
   const kept = (name: StartField, fallback = "") => state.values[name] ?? fallback;
+  const settled = !prefill.editable && prefill.from !== null;
 
   return (
     <>
@@ -68,85 +71,53 @@ export function StartForm({
             record the directory advertises keeps accumulating. */}
         {target ? <input type="hidden" name="with" value={target.id} /> : null}
 
-        <Field label="What's the swap?" hint="A few words. Both sides see this.">
-          <input
-            name="title"
-            required
-            minLength={3}
-            maxLength={140}
-            defaultValue={kept("title")}
-            placeholder="Newsletter feature for an extended trial"
-            className="field"
-          />
-        </Field>
-
         <fieldset className="space-y-4 rounded-xl border border-line bg-white p-5">
-          <legend className="px-2 text-sm font-semibold">Your side</legend>
+          <legend className="px-2 text-sm font-semibold">Your business</legend>
           {prefill.from ? (
             <p className="text-[0.9375rem] text-muted">
-              Carrying over <span className="font-medium text-ink">{prefill.name}</span> from your last swap, so your
-              record builds up instead of starting over.
+              Carrying over <span className="font-medium text-ink">{prefill.name}</span> from your last swap, so
+              your record builds up instead of starting over.
               {prefill.editable ? null : " To change these details you'll need your listing link."}
             </p>
           ) : null}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Your business">
-              <input
-                name="yourName"
-                readOnly={!prefill.editable && prefill.from !== null}
-                required
-                maxLength={120}
-                autoComplete="organization"
-                defaultValue={kept("yourName", prefill.name)}
-                placeholder="Clinic Scheduler"
-                className="field"
-              />
-            </Field>
-            <Field label="What kind">
-              <select
-                name="yourKind"
-                disabled={!prefill.editable && prefill.from !== null}
-                className="field"
-                defaultValue={kept("yourKind", prefill.kind || "app")}
-              >
-                {KIND_OPTIONS.map((k) => (
-                  <option key={k.value} value={k.value}>
-                    {k.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
-          <Field label="Website" hint="Optional">
+          <Field label="Your business">
+            <input
+              name="yourName"
+              required
+              readOnly={settled}
+              maxLength={120}
+              autoComplete="organization"
+              defaultValue={kept("yourName", prefill.name)}
+              placeholder="Clinic Scheduler"
+              className="field"
+            />
+          </Field>
+          <Field label="Website" hint="Optional. It's the one thing your partner can check before they answer.">
             <input
               name="yourWebsite"
-              readOnly={!prefill.editable && prefill.from !== null}
               type="url"
+              readOnly={settled}
               autoComplete="url"
               defaultValue={kept("yourWebsite", prefill.website)}
               placeholder="https://example.com"
               className="field"
             />
           </Field>
-          {/*
-            "if email delivery is enabled" was true and self-defeating. It
-            hedged the product's whole promise on a public form, in the voice of
-            someone unsure their own software runs, and it is the first thing a
-            hostile reader would quote. The honest version says what the address
-            is for and who is doing the chasing today, without casting doubt on
-            whether the thing works.
-          */}
-          <Field label="Your email" hint="Optional. Where your deadline reminders go. During the pilot we also chase by hand.">
-            <input
-              name="yourEmail"
-              readOnly={!prefill.editable && prefill.from !== null}
-              type="email"
-              autoComplete="email"
-              defaultValue={kept("yourEmail", prefill.email)}
-              className="field"
-            />
-          </Field>
-          <Field label="What you'll give" hint="Be specific enough that someone could check it happened.">
+        </fieldset>
+
+        <fieldset className="space-y-4 rounded-xl border border-line bg-white p-5">
+          <legend className="px-2 text-sm font-semibold">What you&apos;ll give</legend>
+          {/* Moved up next to the field it should be shaping. It used to sit
+              two fieldsets away, in the box about the partner. */}
+          {target?.needs ? (
+            <p className="max-w-prose text-[0.9375rem] leading-relaxed text-muted">
+              {target.name} said they&apos;re looking for: {target.needs}
+            </p>
+          ) : null}
+          <Field
+            label="What you'll give"
+            hint="Specific enough that someone could check it happened. Name the placement, the audience, or the offer."
+          >
             <input
               name="yourGive"
               required
@@ -157,7 +128,7 @@ export function StartForm({
               className="field"
             />
           </Field>
-          <Field label="By when">
+          <Field label="By when" hint="The date you'll have delivered it by. Both sides get reminded before it.">
             <input
               name="yourDue"
               type="date"
@@ -170,53 +141,27 @@ export function StartForm({
         </fieldset>
 
         <fieldset className="space-y-4 rounded-xl border border-line bg-white p-5">
-          <legend className="px-2 text-sm font-semibold">Their side</legend>
-          {target ? (
-            <>
-              <p className="text-[0.9375rem]">
-                <span className="font-medium">{target.name}</span>
-                <span className="text-muted"> from the partner list.</span>
-              </p>
-              {target.needs ? (
-                <p className="max-w-prose text-[0.9375rem] leading-relaxed text-muted">
-                  They said they&apos;re looking for: {target.needs}
-                </p>
-              ) : null}
-            </>
-          ) : null}
-          <div className={`grid gap-4 sm:grid-cols-2 ${target ? "hidden" : ""}`}>
+          {/* A request, not a term. The old wording asked you to write a
+              stranger's deliverable and pick their deadline before any
+              contact, which is a presumptuous thing to ask of anyone. */}
+          <legend className="px-2 text-sm font-semibold">
+            {target ? `What you'd like from ${target.name}` : "What you want back"}
+          </legend>
+          {target ? null : (
             <Field label="Their business">
               <input
                 name="partnerName"
-                required={!target}
+                required
                 maxLength={120}
-                defaultValue={kept("partnerName", target?.name ?? "")}
+                defaultValue={kept("partnerName")}
                 placeholder="Practice Manager Weekly"
                 className="field"
               />
             </Field>
-            <Field label="What kind">
-              <select name="partnerKind" className="field" defaultValue={kept("partnerKind", target?.kind || "newsletter")}>
-                {KIND_OPTIONS.map((k) => (
-                  <option key={k.value} value={k.value}>
-                    {k.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
-          <Field label="Website" hint="Optional" className={target ? "hidden" : ""}>
-            <input
-              name="partnerWebsite"
-              type="url"
-              defaultValue={kept("partnerWebsite")}
-              placeholder="https://example.com"
-              className="field"
-            />
-          </Field>
+          )}
           <Field
-            label={target ? `What ${target.name} would give` : "What they'll give"}
-            hint="They can accept this, suggest changes, or decline."
+            label={target ? `What you'd like ${target.name} to do` : "What you'd like them to do"}
+            hint="They can accept this, suggest changes, or decline, so ask for something specific and let them firm it up."
           >
             <input
               name="partnerGive"
@@ -224,11 +169,11 @@ export function StartForm({
               minLength={3}
               maxLength={500}
               defaultValue={kept("partnerGive")}
-              placeholder="A dedicated section in the October 17 issue"
+              placeholder="A dedicated section in an issue this autumn"
               className="field"
             />
           </Field>
-          <Field label="By when">
+          <Field label="A date you'd suggest" hint="They can change it when they answer.">
             <input
               name="partnerDue"
               type="date"
@@ -240,9 +185,25 @@ export function StartForm({
           </Field>
         </fieldset>
 
+        <Field label="Name the swap" hint="A few words. It's the heading on the deal sheet both of you read.">
+          <input
+            name="title"
+            required
+            minLength={3}
+            maxLength={140}
+            defaultValue={kept("title")}
+            placeholder="Newsletter feature for an extended trial"
+            className="field"
+          />
+        </Field>
+
         <div className="flex flex-wrap items-center gap-4">
           <SubmitButton pendingLabel="Creating...">Create the deal sheet</SubmitButton>
-          <p className="text-[0.9375rem] text-muted">Nothing is sent anywhere until you share the link yourself.</p>
+          <p className="text-[0.9375rem] text-muted">
+            {target
+              ? "Nothing is emailed. It appears on their partner-list page, and during the pilot we nudge them ourselves."
+              : "Nothing is sent anywhere until you share the link yourself."}
+          </p>
         </div>
       </form>
     </>

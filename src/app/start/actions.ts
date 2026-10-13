@@ -49,15 +49,17 @@ export async function startSwapAction(_previous: StartState, formData: FormData)
     // commitmentInput, because the operator legitimately records swaps that
     // already ran.
     if (term.dueDate && term.dueDate < today) {
-      const side = term.side === "a" ? "Your" : "Their";
-      return fail(`${side} deadline has already passed. Pick a date from today onward.`);
+      const side = term.side === "a" ? "Your deadline" : "The date you suggested";
+      return fail(`${side} has already passed. Pick a date from today onward.`);
     }
     const parsed = commitmentInput.safeParse(term);
     // Name the side. "Describe what will be delivered" and "Pick a due date"
     // apply equally to both halves of this form, so the bare message left
     // someone to re-read fourteen fields to find which one it meant.
     if (!parsed.success) {
-      const side = term.side === "a" ? "Your side" : "Their side";
+      // Named, because "Describe what will be delivered" applies equally to
+      // both halves and the form has no field-level errors.
+      const side = term.side === "a" ? "What you'll give" : "What you're asking for";
       return fail(`${side}: ${firstIssue(parsed.error)}`);
     }
   }
@@ -85,9 +87,7 @@ export async function startSwapAction(_previous: StartState, formData: FormData)
     // you rewrite your name, website and reminder address later.
     const mine = {
       name: field("yourName"),
-      kind: field("yourKind") || "app",
       website: field("yourWebsite") || null,
-      email: field("yourEmail") || null,
     };
     // Proposing to a business from the directory reuses that business rather
     // than minting a copy of it. Otherwise every proposal aimed at the same
@@ -109,11 +109,7 @@ export async function startSwapAction(_previous: StartState, formData: FormData)
             if (!row) throw new SurkaError("That business isn't listed anymore.", "not_found");
             return row;
           })
-        : createParty(db, {
-            name: field("partnerName"),
-            kind: field("partnerKind") || "other",
-            website: field("partnerWebsite") || null,
-          }),
+        : createParty(db, { name: field("partnerName") }),
     ]);
 
     const created = await createSwap(

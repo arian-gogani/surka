@@ -425,11 +425,23 @@ async function run() {
   check(visible(aimed.html).includes("Propose a swap to Practice Manager Weekly"), "proposing from the list names them");
   check(visible(aimed.html).includes("readers would use daily"), "proposing from the list shows what they want");
 
+  // One date input in the aimed form would be wrong: the home page's own
+  // example has two different dates, so a swap with one shared deadline is not
+  // the common case. What changed is the framing, not the field count.
+  check(
+    !visible(aimed.html).includes("link to send"),
+    "the aimed form does not promise a link it never hands over",
+  );
+  check(
+    // Without the apostrophe: it comes through a prop, so React escapes it.
+    visible(aimed.html).includes("like Practice Manager Weekly to do"),
+    "the partner half reads as a request",
+  );
+
   const fromList = await submit(`/start?with=${listedId}`, 'name="partnerGive"', {
     with: listedId,
     title: "Swap found through the list",
     yourName: "Invoice Nudge",
-    yourKind: "app",
     yourGive: "A spot in our onboarding email to 2,000 new users",
     yourDue: due,
     partnerGive: "A dedicated section in the December issue",

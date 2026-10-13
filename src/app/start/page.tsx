@@ -58,10 +58,14 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
         <h1 className="max-w-[18ch] text-[36px] font-semibold leading-[1.05] sm:text-[44px]">
           {target ? `Propose a swap to ${target.name}.` : "Write the swap down, and we'll hold both sides to it."}
         </h1>
+        {/* "Two minutes" was wrong: writing a deliverable specific enough to
+            check is the hard part, not the typing. And the aimed version
+            promised a link to send them, which the action deliberately
+            withholds. */}
         <p className="mt-5 max-w-prose text-lg leading-relaxed text-muted">
           {target
-            ? `Two minutes. We'll give you a link to send ${target.name}, and they can accept it, suggest changes, or decline. Neither of you needs an account.`
-            : "Two minutes. You get a private link for yourself and one to send your partner. Neither of you needs an account."}
+            ? `Say what you'll give ${target.name} and what you'd want back. They'll find it on their own partner-list page, where their swaps already are, and can accept it, suggest changes, or decline. Neither of you needs an account.`
+            : "The one part that takes thought is saying what you'll deliver, specifically enough that someone could check it happened. The rest is a name and a date. You get a private link for yourself and one to send your partner, and neither of you needs an account."}
         </p>
 
         <StartForm
@@ -70,21 +74,12 @@ export default async function StartPage({ searchParams }: { searchParams: Promis
           prefill={{
             from: you ? from ?? null : null,
             name: you?.party.name ?? "",
-            kind: you?.party.kind ?? "",
             website: you?.party.website ?? "",
-            // Only from a listing link. The counterparty holds the swap link by
-            // design, and this field is where the partner typed an address on
-            // the promise that it "isn't shared or used for anything else".
-            email: you?.canEditIdentity ? (you.party.email ?? "") : "",
             // A swap link carries the business forward but cannot rewrite it,
             // so the fields are shown as settled rather than as editable.
             editable: you?.canEditIdentity ?? true,
           }}
-          target={
-            target
-              ? { id: target.id, name: target.name, kind: target.kind, needs: target.needs }
-              : null
-          }
+          target={target ? { id: target.id, name: target.name, needs: target.needs } : null}
         />
       </main>
     </div>

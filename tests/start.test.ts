@@ -34,15 +34,16 @@ const SOON = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
 const RUN_AT = new Date(`${new Date(Date.now()).toISOString().slice(0, 10)}T15:00:00Z`);
 
 describe("public swap start", () => {
-  it("lets the creator provide an optional reminder email", async () => {
+  it("lets the creator turn reminders on from their own link", async () => {
+    // The form no longer asks for an address. It had one consumer, which only
+    // fires on an accepted swap, and the deal sheet already has a form for it,
+    // so asking on /start collected personal data at the moment the user has
+    // the least evidence the product does anything.
     const form = new FormData();
     for (const [key, value] of Object.entries({
       title: "Two newsletter placements",
       yourName: "First Weekly",
-      yourKind: "newsletter",
-      yourEmail: "Editor@First.example",
       partnerName: "Second Weekly",
-      partnerKind: "newsletter",
       yourGive: "A dedicated placement in our next issue",
       partnerGive: "A dedicated placement in their next issue",
       yourDue: SOON,
@@ -50,19 +51,22 @@ describe("public swap start", () => {
     })) form.set(key, value);
 
     let target = "";
-    // The action takes the previous state first now, so a rejected submit can
-    // hand back what was typed instead of wiping an eleven-field form.
+    // The action takes the previous state first, so a rejected submit can hand
+    // back what was typed instead of wiping the form.
     try { await startSwapAction(EMPTY_START, form); } catch (error) { target = String(error); }
     expect(target).toMatch(/^Error: REDIRECT:\/start\/sent\?/);
     const url = new URL(target.slice("Error: REDIRECT:".length), "http://localhost");
     const a = url.searchParams.get("a") ?? "";
     const b = url.searchParams.get("b") ?? "";
-    const { getSwapForToken } = await import("@/lib/services/swaps");
-    const view = await getSwapForToken(db, a);
-    expect(view.partyA.email).toBe("editor@first.example");
+    const { getSwapForToken, setSideEmail } = await import("@/lib/services/swaps");
+    expect((await getSwapForToken(db, a)).partyA.email).toBeNull();
 
     await respond(db, b, { decision: "accept" }, RUN_AT);
+    await setSideEmail(db, a, { email: "Editor@First.example" });
+    expect((await getSwapForToken(db, a)).partyA.email).toBe("editor@first.example");
+
     const sent: string[] = [];
+    // Side B still has no address, so one send and one skip.
     const run = await runReminders(db, async (message) => { sent.push(message.to); }, RUN_AT);
     expect(run).toMatchObject({ sent: 1, skipped: 1, failed: 0 });
     expect(sent).toEqual(["editor@first.example"]);
@@ -75,11 +79,9 @@ describe("a rejected submit keeps what was typed", () => {
     for (const [key, value] of Object.entries({
       title: "A swap worth keeping",
       yourName: "First Weekly",
-      yourKind: "newsletter",
       yourGive: "A dedicated placement in our next issue",
       yourDue: SOON,
       partnerName: "Second Weekly",
-      partnerKind: "newsletter",
       partnerGive: "A dedicated placement in their next issue",
       // Not a real date, so the server rejects it after the browser is bypassed.
       partnerDue: "not-a-date",
@@ -89,14 +91,14 @@ describe("a rejected submit keeps what was typed", () => {
     // The message, not merely "some error". Asserting truthiness passed when
     // the rate limiter refused the submit, and when a bad date reached
     // Postgres and raised a generic failure, neither of which is what this
-    // test names.
-    expect(state.error).toContain("Their side");
+    // test names. The side is named because the form has no field-level errors.
+    expect(state.error).toContain("What you're asking for");
     expect(state.error).toContain("due date");
-    // Everything they typed comes back, including the eight good fields.
+    // Everything they typed comes back.
     expect(state.values.title).toBe("A swap worth keeping");
     expect(state.values.yourGive).toBe("A dedicated placement in our next issue");
     expect(state.values.partnerName).toBe("Second Weekly");
-    expect(state.values.partnerKind).toBe("newsletter");
+    expect(state.values.partnerGive).toBe("A dedicated placement in their next issue");
   });
 });
 
