@@ -3,17 +3,10 @@
 import { useActionState } from "react";
 import { SubmitButton } from "@/components/submit-button";
 import { Field, Notice } from "@/components/ui";
+import { KIND_OPTIONS } from "@/lib/present";
 import { startSwapAction } from "./actions";
 import { EMPTY_START, type StartField } from "./state";
 
-/** Mirrors the kinds accepted by partyInput; shown on the deal sheet under each name. */
-const KINDS = [
-  { value: "app", label: "App or software" },
-  { value: "newsletter", label: "Newsletter" },
-  { value: "community", label: "Community" },
-  { value: "creator", label: "Creator" },
-  { value: "other", label: "Something else" },
-] as const;
 
 export interface Prefill {
   from: string | null;
@@ -116,7 +109,7 @@ export function StartForm({
                 className="field"
                 defaultValue={kept("yourKind", prefill.kind || "app")}
               >
-                {KINDS.map((k) => (
+                {KIND_OPTIONS.map((k) => (
                   <option key={k.value} value={k.value}>
                     {k.label}
                   </option>
@@ -204,7 +197,7 @@ export function StartForm({
             </Field>
             <Field label="What kind">
               <select name="partnerKind" className="field" defaultValue={kept("partnerKind", target?.kind || "newsletter")}>
-                {KINDS.map((k) => (
+                {KIND_OPTIONS.map((k) => (
                   <option key={k.value} value={k.value}>
                     {k.label}
                   </option>

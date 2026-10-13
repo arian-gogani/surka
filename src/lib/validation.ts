@@ -61,7 +61,6 @@ export const partyInput = z.object({
   needs: optionalText(1000),
   notes: optionalText(2000),
 });
-export type PartyInput = z.input<typeof partyInput>;
 
 export const commitmentInput = z.object({
   side: sideSchema,
@@ -72,7 +71,6 @@ export const commitmentInput = z.object({
     .max(500, "Keep this under 500 characters"),
   dueDate: z.string().refine(isValidDateOnly, "Pick a due date"),
 });
-export type CommitmentInput = z.input<typeof commitmentInput>;
 
 /** Exported so the public form can reject a bad title before writing anything. */
 export const swapTitle = z
@@ -103,7 +101,6 @@ export const swapInput = z
     (v) => v.commitments.some((c) => c.side === "a") && v.commitments.some((c) => c.side === "b"),
     { message: "Both sides need to give something. No trade, no swap.", path: ["commitments"] },
   );
-export type SwapInput = z.input<typeof swapInput>;
 
 /**
  * The directory opt-in. Offers and needs are required when listing, because an
@@ -141,6 +138,13 @@ export const listingInput = z
     // and a zod default only fires on undefined, so removing a listing (which
     // posts no website at all) failed with a type error instead of succeeding.
     website: text1000,
+    // nullish, not optional: formData.get returns null for a field a caller
+    // did not send, and optional only accepts undefined. Same trap as the
+    // text fields above.
+    kind: z
+      .enum(["app", "newsletter", "community", "creator", "other"])
+      .nullish()
+      .transform((v) => v ?? undefined),
   })
   .refine((v) => !v.listed || v.offers.length >= 10, {
     message: "Say what you can offer a partner, in a sentence or so",
@@ -171,7 +175,6 @@ export const responseInput = z
     message: "Say what you'd change so we can rework the terms",
     path: ["message"],
   });
-export type ResponseInput = z.input<typeof responseInput>;
 
 export const proofInput = z.object({ proofUrl: url });
 

@@ -4,7 +4,6 @@ import { isResolved } from "./swap-rules";
 
 export interface CheckedCommitment {
   status: CommitmentStatus;
-  verifiedAt: Date | null;
   /** Date-only, as stored. Needed to tell an abandoned promise from a live one. */
   dueDate: string;
   /** When the side said it had delivered, so lateness can be counted. */

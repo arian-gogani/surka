@@ -17,12 +17,15 @@ export async function updateListingAction(formData: FormData) {
   // an edit to something already public.
   const before = await getListingForToken(await getDb(), token);
   const wasLive = before?.party.listedAt !== null && before?.party.listedAt !== undefined;
-  // A checkbox the browser omits when unchecked is what lets one form both
-  // save and remove, without a second route that could be posted to by mistake.
+  // Two submit buttons, one carrying name="listed". A browser sends only the
+  // activated button's name, which is what lets one form both save and remove
+  // without a second route that could be posted to by mistake. The comment
+  // here used to describe a checkbox, which this has never had.
   const listed = formData.get("listed") !== null;
   try {
     await setListed(await getDb(), token, {
       listed,
+      kind: formData.get("kind"),
       website: formData.get("website"),
       offers: formData.get("offers"),
       needs: formData.get("needs"),

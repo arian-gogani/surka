@@ -118,9 +118,9 @@ describe("track record", () => {
   it("ignores a commitment that is still live", () => {
     const record = computeRecord(
       [
-        { status: "kept", verifiedAt: NOW, dueDate: "2026-09-01", deliveredAt: null },
+        { status: "kept", dueDate: "2026-09-01", deliveredAt: null },
         // Still in the future, so it is a promise in flight, not a broken one.
-        { status: "pending", verifiedAt: null, dueDate: "2026-10-20", deliveredAt: null },
+        { status: "pending", dueDate: "2026-10-20", deliveredAt: null },
       ],
       NOW,
     );
@@ -133,10 +133,10 @@ describe("track record", () => {
     // run gives up after one overdue notice, so ghosting a commitment used to
     // be free and invisible: the denominator was the operator's workload, not
     // the business's promises.
-    const kept = { status: "kept" as const, verifiedAt: NOW, dueDate: "2026-09-20", deliveredAt: null };
-    const live = { status: "pending" as const, verifiedAt: null, dueDate: "2026-10-20", deliveredAt: null };
-    const slipping = { status: "pending" as const, verifiedAt: null, dueDate: "2026-09-25", deliveredAt: null };
-    const ghosted = { status: "pending" as const, verifiedAt: null, dueDate: "2026-08-01", deliveredAt: null };
+    const kept = { status: "kept" as const, dueDate: "2026-09-20", deliveredAt: null };
+    const live = { status: "pending" as const, dueDate: "2026-10-20", deliveredAt: null };
+    const slipping = { status: "pending" as const, dueDate: "2026-09-25", deliveredAt: null };
+    const ghosted = { status: "pending" as const, dueDate: "2026-08-01", deliveredAt: null };
 
     expect(computeRecord([kept, live], NOW)).toEqual({ kept: 1, resolved: 1, late: 0 });
     // A week late is a slipped issue, not an abandoned promise.
@@ -146,7 +146,7 @@ describe("track record", () => {
 
     // Delivered and waiting on the operator never counts against the party who
     // did their part: that would charge them for our latency.
-    const waiting = { status: "delivered" as const, verifiedAt: null, dueDate: "2026-08-01", deliveredAt: null };
+    const waiting = { status: "delivered" as const, dueDate: "2026-08-01", deliveredAt: null };
     expect(computeRecord([kept, waiting], NOW)).toEqual({ kept: 1, resolved: 1, late: 0 });
   });
 
@@ -156,13 +156,11 @@ describe("track record", () => {
     // a product whose pitch is holding both sides to the dates.
     const onTime = {
       status: "kept" as const,
-      verifiedAt: NOW,
       dueDate: "2026-10-05",
       deliveredAt: new Date("2026-10-05T23:00:00Z"),
     };
     const late = {
       status: "kept" as const,
-      verifiedAt: NOW,
       dueDate: "2026-10-05",
       deliveredAt: new Date("2026-10-09T01:00:00Z"),
     };
@@ -182,8 +180,8 @@ describe("track record", () => {
     const old = new Date(NOW.getTime() - 3 * 365 * 86_400_000);
     const record = computeRecord(
       [
-        { status: "missed", verifiedAt: old, dueDate: "2026-09-01", deliveredAt: null },
-        { status: "kept", verifiedAt: NOW, dueDate: "2026-09-01", deliveredAt: null },
+        { status: "missed", dueDate: "2026-09-01", deliveredAt: null },
+        { status: "kept", dueDate: "2026-09-01", deliveredAt: null },
       ],
       NOW,
     );

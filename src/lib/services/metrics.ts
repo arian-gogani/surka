@@ -6,8 +6,16 @@ import { DAY_MS } from "../dates";
 export interface PilotMetrics {
   swapsByStatus: Record<SwapStatus, number>;
   completedThisWeek: number;
-  /** Kept ÷ checked commitments. Null until something has been checked. */
-  onTimeRate: number | null;
+  /**
+   * Kept divided by checked commitments. Null until something is checked.
+   *
+   * Named keptRate because that is what it is. It was called onTimeRate and
+   * had no reference to a deadline, so the one number the Phase 0 gate is read
+   * off was the one that could not answer it, and the next person wanting an
+   * on-time percentage would have reached straight for the wrong field. See
+   * onTimeCommitments.
+   */
+  keptRate: number | null;
   keptCommitments: number;
   checkedCommitments: number;
   /**
@@ -28,7 +36,7 @@ export interface PilotMetrics {
   repeatParties: number;
   /**
    * Completed swaps where nothing was missed. The Phase 0 gate is written in
-   * swaps ("3 of 5 on time"), while onTimeRate is per commitment, so a swap
+   * swaps ("3 of 5 on time"), while keptRate is per commitment, so a swap
    * that half delivered still lifts that percentage. This counts whole swaps.
    */
   swapsFullyKept: number;
@@ -193,7 +201,7 @@ export async function pilotMetrics(db: Db, now = new Date()): Promise<PilotMetri
   return {
     swapsByStatus,
     completedThisWeek: weekRows[0]?.n ?? 0,
-    onTimeRate: checked === 0 ? null : kept / checked,
+    keptRate: checked === 0 ? null : kept / checked,
     keptCommitments: kept,
     checkedCommitments: checked,
     onTimeCommitments: onTimeRows[0]?.n ?? 0,

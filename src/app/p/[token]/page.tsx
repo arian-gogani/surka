@@ -7,7 +7,7 @@ import { Button, ButtonLink, Field, Notice, StatusPill } from "@/components/ui";
 import { getDb } from "@/db/client";
 import { appUrl, contactEmail } from "@/lib/env";
 import { verifyNotice } from "@/lib/notice";
-import { KIND_LABEL } from "@/lib/present";
+import { KIND_LABEL, KIND_OPTIONS } from "@/lib/present";
 import { describeRecord } from "@/lib/reputation";
 import { getListingForToken } from "@/lib/services/swaps";
 import { updateListingAction } from "./actions";
@@ -89,6 +89,15 @@ export default async function ListingPage({ params, searchParams }: Props) {
           <h2 className="text-xl font-semibold">Your listing</h2>
           {/* Required to appear, because it is the only thing on a listing a
               reader can check and the only thing the review has to go on. */}
+          <Field label="What kind" hint="Shown next to your name on the partner list.">
+            <select name="kind" className="field" defaultValue={party.kind}>
+              {KIND_OPTIONS.map((k) => (
+                <option key={k.value} value={k.value}>
+                  {k.label}
+                </option>
+              ))}
+            </select>
+          </Field>
           <Field label="Website" hint="Shown on your listing. Required to appear on the list.">
             <input
               name="website"

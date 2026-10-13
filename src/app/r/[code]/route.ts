@@ -30,11 +30,17 @@ function missing(): Response {
 }
 
 /**
- * Whether this request is a person following the link.
+ * Whether this request looks like a person following the link.
  *
  * A click count is the number both founders use to decide whether to swap
- * again, and it was counting link checkers, uptime monitors, mail-gateway
- * prescanners and browser prefetches. None of those is a reader.
+ * again, and it was counting browser prefetches and anything that issued a
+ * HEAD, which is what link checkers and mail-gateway prescanners prefer
+ * because it is cheap. Those two are now excluded outright.
+ *
+ * It is not a filter for everything automated: a monitor issuing a plain GET
+ * with no purpose header is indistinguishable from a reader, and the honest
+ * answer is that the per-code rate limit caps what any one of them can add
+ * rather than telling them apart.
  */
 function isRealVisit(request: Request): boolean {
   const purpose = `${request.headers.get("sec-purpose") ?? ""} ${request.headers.get("purpose") ?? ""}`;

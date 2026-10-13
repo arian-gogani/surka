@@ -789,6 +789,31 @@ describe("the partner list", () => {
     expect((await pendingListings(db, NOW)).find((l) => l.id === unrelated.party.id)?.sameSite).toEqual([]);
   });
 
+  it("lets a listing set what kind of business it is", async () => {
+    // The listing form had no kind field, so a party created through /start was
+    // stuck with whatever was picked on the form that does not publish it.
+    const { newsletter, tokens } = await agreed();
+    const own = await claimParty(db, tokens.b);
+    await setListed(db, own, {
+      listed: "yes",
+      kind: "community",
+      website: "https://pmweekly.example",
+      offers: "A dedicated section in the next issue",
+      needs: "Something my readers would use daily",
+    });
+    await approveListing(db, newsletter.id, NOW);
+    expect((await listListings(db, NOW))[0]?.kind).toBe("community");
+
+    // Omitting it leaves the existing value rather than resetting it.
+    await setListed(db, own, {
+      listed: "yes",
+      website: "https://pmweekly.example",
+      offers: "A dedicated section in the next issue",
+      needs: "Something else entirely for my readers",
+    });
+    expect((await listListings(db, NOW))[0]?.kind).toBe("community");
+  });
+
   it("will not approve a business that never asked", async () => {
     const { newsletter } = await agreed();
     await expectSurka(approveListing(db, newsletter.id, NOW), "not_found");
@@ -1112,7 +1137,7 @@ describe("pilot metrics", () => {
     const m = await pilotMetrics(db, NOW);
     expect(m.swapsByStatus.completed).toBe(1);
     expect(m.completedThisWeek).toBe(1);
-    expect(m.onTimeRate).toBe(1);
+    expect(m.keptRate).toBe(1);
     // Nothing was marked delivered in this swap, so nothing can be on time:
     // "kept" and "kept on time" are different claims and the gate is the
     // second one.
@@ -1282,7 +1307,7 @@ describe("the Phase 0 gate counts whole swaps", () => {
     expect(m.completedSwaps).toBe(2);
     // Three of four commitments were kept, which reads as 75% and flatters the
     // gate. Only one of the two swaps actually delivered in full.
-    expect(m.onTimeRate).toBeCloseTo(0.75);
+    expect(m.keptRate).toBeCloseTo(0.75);
     expect(m.swapsFullyKept).toBe(1);
   });
 });

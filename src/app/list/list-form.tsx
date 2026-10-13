@@ -3,17 +3,10 @@
 import { useActionState } from "react";
 import { SubmitButton } from "@/components/submit-button";
 import { Field, Notice } from "@/components/ui";
+import { KIND_OPTIONS } from "@/lib/present";
 import { createListingAction } from "./actions";
 import { EMPTY_LIST, type ListField } from "./state";
 
-/** Mirrors the kinds accepted by partyInput; shown beside the name on the list. */
-const KINDS = [
-  { value: "app", label: "App or software" },
-  { value: "newsletter", label: "Newsletter" },
-  { value: "community", label: "Community" },
-  { value: "creator", label: "Creator" },
-  { value: "other", label: "Something else" },
-] as const;
 
 /**
  * A client component only so a rejected submit can hand back what was typed.
@@ -51,7 +44,7 @@ export function ListForm() {
             </Field>
             <Field label="What kind">
               <select name="kind" className="field" defaultValue={kept("kind", "app")}>
-                {KINDS.map((k) => (
+                {KIND_OPTIONS.map((k) => (
                   <option key={k.value} value={k.value}>
                     {k.label}
                   </option>

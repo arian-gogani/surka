@@ -283,6 +283,7 @@ export async function setListed(
             offers: values.offers,
             needs: values.needs,
             website: values.website,
+            ...(values.kind ? { kind: values.kind } : {}),
             listingRequestedAt: now,
             // Editing a listing that is already public keeps it public. Only
             // the first appearance waits on a person, because that is where
@@ -671,7 +672,6 @@ export async function partyRecord(db: Db, partyId: string, now = new Date()): Pr
   const rows = await db
     .select({
       status: commitments.status,
-      verifiedAt: commitments.verifiedAt,
       dueDate: commitments.dueDate,
       deliveredAt: commitments.deliveredAt,
     })
@@ -709,7 +709,6 @@ export async function partyRecords(db: Db, now = new Date()): Promise<Map<string
   const rows = await db
     .select({
       status: commitments.status,
-      verifiedAt: commitments.verifiedAt,
       dueDate: commitments.dueDate,
       deliveredAt: commitments.deliveredAt,
       side: commitments.side,

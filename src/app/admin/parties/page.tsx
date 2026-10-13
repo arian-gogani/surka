@@ -3,7 +3,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { Button, Field } from "@/components/ui";
 import { getDb } from "@/db/client";
 import { describeRecord, NO_RECORD } from "@/lib/reputation";
-import { KIND_LABEL } from "@/lib/present";
+import { KIND_LABEL, KIND_OPTIONS } from "@/lib/present";
 import { listParties, partyRecords } from "@/lib/services/swaps";
 import { createPartyAction } from "../actions";
 
