@@ -152,7 +152,7 @@ function Entry({ listing, label }: { listing: Listing; label: string }) {
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <p className="break-words font-medium">{listing.name}</p>
         <p className="num text-[0.8125rem] text-muted">
-          {KIND_LABEL[listing.kind]}, {label.toLowerCase()} {formatShortDate(listing.listedAt)},{" "}
+          {KIND_LABEL[listing.kind]}, {label.toLowerCase()} {formatShortDate(listing.since)},{" "}
           {describeRecord(listing.record)}
         </p>
       </div>

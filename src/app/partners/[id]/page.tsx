@@ -67,7 +67,7 @@ export default async function ListingProfile({ params }: Props) {
           {listing.name}
         </h1>
         <p className="mt-4 text-lg text-muted">
-          Looking for a cross-promotion partner. Listed {formatShortDate(listing.listedAt)}.
+          Looking for a cross-promotion partner. Listed {formatShortDate(listing.since)}.
         </p>
 
         {/* Said plainly and early. It is the one claim on this page that the

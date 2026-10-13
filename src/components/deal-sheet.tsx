@@ -4,7 +4,8 @@ import { SideTag } from "./ui";
 
 export interface DealSheetSide {
   name: string;
-  detail?: string | null;
+  /** Always supplied by sheetSide, which is the only producer. */
+  detail: string;
   record: string;
   gives: { description: string; dueDate: string }[];
 }

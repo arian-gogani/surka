@@ -248,7 +248,17 @@ export interface Listing {
   offers: string;
   needs: string;
   record: TrackRecord;
-  listedAt: Date;
+  /**
+   * When this entry reached its current state.
+   *
+   * Named for the state rather than for one of its two meanings. The field was
+   * called listedAt, and the review queue selected listingRequestedAt into it,
+   * so the same name carried two different facts and the admin page printed a
+   * caller-supplied word next to it to say which. A reader of either struct
+   * had no way to know, and pairing the wrong label with the wrong date was
+   * one argument away.
+   */
+  since: Date;
 }
 
 /**
@@ -430,7 +440,7 @@ export async function pendingListings(
       website: parties.website,
       offers: parties.offers,
       needs: parties.needs,
-      listedAt: parties.listingRequestedAt,
+      since: parties.listingRequestedAt,
       // Whether this is a first request or an edit to something already live.
       // They need different rejections, and they shared one button.
       alreadyPublic: parties.listedAt,
@@ -468,7 +478,7 @@ export async function pendingListings(
       ...row,
       offers: row.offers ?? "",
       needs: row.needs ?? "",
-      listedAt: row.listedAt as Date,
+      since: row.since as Date,
       record: records.get(row.id) ?? NO_RECORD,
       alreadyPublic: row.alreadyPublic !== null,
       sameSite: (host ? (byHost.get(host) ?? []) : [])
@@ -586,7 +596,7 @@ export async function listListings(
         website: parties.website,
         offers: parties.offers,
         needs: parties.needs,
-        listedAt: parties.listedAt,
+        since: parties.listedAt,
       })
       .from(parties)
       .where(isNotNull(parties.listedAt))
@@ -597,7 +607,7 @@ export async function listListings(
     ...row,
     offers: row.offers ?? "",
     needs: row.needs ?? "",
-    listedAt: row.listedAt as Date,
+    since: row.since as Date,
     record: records.get(row.id) ?? NO_RECORD,
   }));
 }
@@ -625,17 +635,17 @@ export const getListing = cache(async function getListing(
       website: parties.website,
       offers: parties.offers,
       needs: parties.needs,
-      listedAt: parties.listedAt,
+      since: parties.listedAt,
     })
     .from(parties)
     .where(and(eq(parties.id, partyId), isNotNull(parties.listedAt)))
     .limit(1);
-  if (!row?.listedAt) return null;
+  if (!row?.since) return null;
   return {
     ...row,
     offers: row.offers ?? "",
     needs: row.needs ?? "",
-    listedAt: row.listedAt,
+    since: row.since,
     record: await partyRecord(db, row.id, now),
   };
 });
