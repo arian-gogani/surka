@@ -16,17 +16,21 @@ import { listListings } from "@/lib/services/swaps";
  * and a stranger can propose to them without anyone making an introduction.
  */
 /**
- * Cached, and dropped explicitly whenever a listing changes.
+ * Rendered per request, deliberately.
  *
- * force-dynamic meant every crawler hit, social-preview fetch and bot sweep
- * ran the queries behind this page, which also kept the database awake around
- * the clock on a site with no users. Five minutes is the floor on a record
- * changing, which is the only thing not covered by an explicit invalidation;
- * approving, refusing, removing and editing a listing all drop these pages
- * immediately, because /list promises a business can remove itself at any time
- * and a cached page would have made that false.
+ * I cached this for five minutes and reverted it. The saving is real but small
+ * at this size, especially now that the record query uses an index instead of
+ * scanning every commitment, and the costs were not: a page with a revalidate
+ * window is prerendered during the build against whatever database the build
+ * machine can reach, which locally is a developer's own, so data was baked into
+ * the artifact and a deploy served that snapshot until something revalidated
+ * it. On a page whose entire value is being current, and on a site with no
+ * traffic to protect, that is the wrong way round.
+ *
+ * The revalidatePath calls in the write paths stay. They cost nothing now and
+ * they are the precondition for caching this correctly later.
  */
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Founders looking for a cross-promotion partner",

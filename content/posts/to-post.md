@@ -8,7 +8,7 @@ Drafts only. Nothing here has been sent and nothing will be: posting is yours.
 - Source: https://github.com/arian-gogani/surka (public, AGPL-3.0, 0 stars)
 - Zero listings, zero users, no swap has ever run end to end with real people
 - Email delivery is not configured, so no reminder has ever been sent
-- 143 tests, ~7,500 lines of TypeScript under `src/`
+- 159 tests, ~8,500 lines of TypeScript under `src/`
 
 **Do not claim** users, traction, waitlist numbers, or that reminders work.
 Every draft is written to be true today. If you edit one, keep it true.

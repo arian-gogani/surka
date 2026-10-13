@@ -624,6 +624,7 @@ async function run() {
   check(rerun.undeliverable >= 1, "the reminder is still due on the next run, not consumed");
 }
 
+
 const dataDir = mkdtempSync(path.join(tmpdir(), "surka-smoke-"));
 const server = spawn("npx", ["next", "start", "-p", String(PORT)], {
   env: { ...process.env, ...ENV, DATABASE_URL: "", PGLITE_DIR: dataDir },
