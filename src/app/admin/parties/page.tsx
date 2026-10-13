@@ -5,7 +5,7 @@ import { getDb } from "@/db/client";
 import { describeRecord, NO_RECORD } from "@/lib/reputation";
 import { KIND_LABEL, KIND_OPTIONS } from "@/lib/present";
 import { listParties, partyRecords } from "@/lib/services/swaps";
-import { createPartyAction } from "../actions";
+import { createPartyAction, updatePartyAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Businesses", robots: { index: false } };
@@ -41,6 +41,48 @@ export default async function PartiesPage({ searchParams }: { searchParams: Prom
                       {p.needs ? <>Wants: {p.needs}.</> : null}
                     </p>
                   ) : null}
+                  {/* A business name is on both deal sheets and in every
+                      reminder, so a typo is not cosmetic, and until now the
+                      operator had no way to correct one. */}
+                  <details className="mt-2 text-[0.875rem]">
+                    <summary className="cursor-pointer text-muted underline underline-offset-4">Edit</summary>
+                    <form action={updatePartyAction} className="mt-3 space-y-3">
+                      <input type="hidden" name="partyId" value={p.id} />
+                      <Field label="Name">
+                        <input name="name" required defaultValue={p.name} className="field" />
+                      </Field>
+                      <Field label="Type">
+                        <select name="kind" defaultValue={p.kind} className="field">
+                          {KIND_OPTIONS.map((k) => (
+                            <option key={k.value} value={k.value}>
+                              {k.label}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label="Website or listing">
+                        <input name="website" type="url" defaultValue={p.website ?? ""} className="field" />
+                      </Field>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Field label="Contact name">
+                          <input name="contactName" defaultValue={p.contactName ?? ""} className="field" />
+                        </Field>
+                        <Field label="Email">
+                          <input name="email" type="email" defaultValue={p.email ?? ""} className="field" />
+                        </Field>
+                      </div>
+                      <Field label="What they have to offer">
+                        <textarea name="offers" rows={2} defaultValue={p.offers ?? ""} className="field" />
+                      </Field>
+                      <Field label="What they want">
+                        <textarea name="needs" rows={2} defaultValue={p.needs ?? ""} className="field" />
+                      </Field>
+                      <Field label="Notes" hint="Only you see these.">
+                        <textarea name="notes" rows={2} defaultValue={p.notes ?? ""} className="field" />
+                      </Field>
+                      <Button type="submit">Save</Button>
+                    </form>
+                  </details>
                 </li>
               ))}
             </ul>

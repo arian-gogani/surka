@@ -14,11 +14,13 @@ import {
   cancelSwap,
   createParty,
   createSwap,
+  keepPreviousListing,
   logOperatorMinutes,
   markProposed,
   replaceCommitments,
   retireTrackingLink,
   unlistParty,
+  updateParty,
   verifyCommitment,
 } from "@/lib/services/swaps";
 import type { NewSwapState } from "./swaps/new/state";
@@ -116,6 +118,25 @@ export async function createPartyAction(formData: FormData) {
 }
 
 /**
+ * The operator correcting a business they entered.
+ *
+ * updateParty has existed since the first commit with no caller, so a typo in
+ * a business name, a wrong address, or a note that turned out to matter was
+ * permanent from the operator's side. The name is on both deal sheets and in
+ * every reminder, so a typo is not cosmetic.
+ */
+export async function updatePartyAction(formData: FormData) {
+  await requireOperator();
+  const partyId = String(formData.get("partyId") ?? "");
+  try {
+    await updateParty(await getDb(), partyId, partyFields(formData));
+  } catch (error) {
+    go("/admin/parties", { error: messageFor(error) });
+  }
+  go("/admin/parties", { ok: "Business updated." });
+}
+
+/**
  * Returns state rather than redirecting on failure.
  *
  * A rejected swap used to bounce back to an empty form, so "Both sides must
@@ -160,6 +181,16 @@ export async function approveListingAction(formData: FormData) {
     go("/admin/listings", { error: messageFor(error) });
   }
   go("/admin/listings", { ok: "Approved. It's on the public partner list now." });
+}
+
+export async function keepListingAction(formData: FormData) {
+  await requireOperator();
+  try {
+    await keepPreviousListing(await getDb(), String(formData.get("partyId") ?? ""));
+  } catch (error) {
+    go("/admin/listings", { error: messageFor(error) });
+  }
+  go("/admin/listings", { ok: "Edit refused. The listing stays as it was on the public page." });
 }
 
 export async function unlistPartyAction(formData: FormData) {

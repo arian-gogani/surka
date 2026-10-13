@@ -162,14 +162,31 @@ async function run() {
   check((await get("/admin")).status === 200, "dashboard opens with the session");
 
   console.log("Businesses and a new swap");
-  await submit("/admin/parties", 'name="offers"', {
+  await submit("/admin/parties", "Add business", {
     name: "Clinic Scheduler",
     kind: "app",
     website: "https://clinicscheduler.example",
     email: "dana@clinicscheduler.example",
   });
-  const added = await submit("/admin/parties", 'name="offers"', { name: "Practice Manager Weekly", kind: "newsletter" });
+  const added = await submit("/admin/parties", "Add business", { name: "Practice Manager Weekly", kind: "newsletter" });
   check(query(added.location, "ok") === "Business added.", "businesses are added");
+
+  // A business name is on both deal sheets and in every reminder, and nothing
+  // called updateParty, so a typo was permanent from the operator's side.
+  const beforeEdit = await get("/admin/parties");
+  const editId = beforeEdit.html.match(/name="partyId" value="([0-9a-f-]{36})"/)?.[1];
+  const edited = await submit("/admin/parties", "Save", {
+    partyId: editId,
+    name: "Clinic Scheduler",
+    kind: "app",
+    website: "https://clinicscheduler.example",
+    email: "dana@clinicscheduler.example",
+  });
+  check(query(edited.location, "ok") === "Business updated.", "the operator can correct a business");
+  check(
+    visible((await get("/admin/parties")).html).includes("Clinic Scheduler"),
+    "the correction sticks",
+  );
 
   const newSwapPage = await get("/admin/swaps/new");
   const ids = [...newSwapPage.html.matchAll(/<option value="([0-9a-f-]{36})">([^<]+)<\/option>/g)];

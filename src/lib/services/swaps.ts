@@ -321,6 +321,31 @@ export async function unlistParty(db: Db, partyId: string): Promise<Party> {
 }
 
 /**
+ * The operator rejecting an edit without taking the listing down.
+ *
+ * A listing that is already public and has been rewritten comes back into the
+ * queue, and the queue's only rejection control was unlistParty, which clears
+ * both stamps. So "Decline" on an edited listing removed a business that had
+ * already been approved, rather than refusing the change. This clears the
+ * request and leaves it public, which is what declining an edit means.
+ *
+ * It cannot restore the previous words: the edit overwrote them, and keeping a
+ * shadow copy of every listing to support an undo nobody has asked for is not
+ * worth the column. What it does is stop the review queue being a place where
+ * the safe-looking button is the destructive one.
+ */
+export async function keepPreviousListing(db: Db, partyId: string): Promise<Party> {
+  if (!isUuid(partyId)) throw new SurkaError("That business doesn't exist.", "not_found");
+  const [party] = await db
+    .update(parties)
+    .set({ listingRequestedAt: null })
+    .where(and(eq(parties.id, partyId), isNotNull(parties.listedAt)))
+    .returning();
+  if (!party) throw new SurkaError("That business isn't on the list, so there's no edit to refuse.", "not_found");
+  return party;
+}
+
+/**
  * The operator letting a requested listing onto the public page.
  *
  * The whole gate. Nothing in the product can tell whether a listing is the
@@ -396,7 +421,7 @@ export async function pendingListings(
   db: Db,
   now = new Date(),
   shared?: Map<string, TrackRecord>,
-): Promise<(Listing & { sameSite: SameSite[] })[]> {
+): Promise<(Listing & { sameSite: SameSite[]; alreadyPublic: boolean })[]> {
   const rows = await db
     .select({
       id: parties.id,
@@ -406,6 +431,9 @@ export async function pendingListings(
       offers: parties.offers,
       needs: parties.needs,
       listedAt: parties.listingRequestedAt,
+      // Whether this is a first request or an edit to something already live.
+      // They need different rejections, and they shared one button.
+      alreadyPublic: parties.listedAt,
     })
     .from(parties)
     .where(
@@ -442,6 +470,7 @@ export async function pendingListings(
       needs: row.needs ?? "",
       listedAt: row.listedAt as Date,
       record: records.get(row.id) ?? NO_RECORD,
+      alreadyPublic: row.alreadyPublic !== null,
       sameSite: (host ? (byHost.get(host) ?? []) : [])
         .filter((p) => p.id !== row.id)
         .map((p) => ({ partyId: p.id, name: p.name, record: records.get(p.id) ?? NO_RECORD })),

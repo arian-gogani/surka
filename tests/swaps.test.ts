@@ -29,6 +29,7 @@ import {
   destinationFor,
   getListing,
   getParty,
+  keepPreviousListing,
   listListings,
   setListed,
   setSideEmail,
@@ -812,6 +813,45 @@ describe("the partner list", () => {
       needs: "Something else entirely for my readers",
     });
     expect((await listListings(db, NOW))[0]?.kind).toBe("community");
+  });
+
+  it("refuses an edit without taking the listing down", async () => {
+    // The queue's only rejection cleared both stamps, so "Decline" on an
+    // edited listing removed a business that had been approved weeks earlier.
+    const { newsletter, tokens } = await agreed();
+    const own = await claimParty(db, tokens.b);
+    const listing = {
+      listed: "yes",
+      website: "https://pmweekly.example",
+      offers: "A dedicated section in the next issue",
+      needs: "Something my readers would use daily",
+    };
+    await setListed(db, own, listing, NOW);
+    await approveListing(db, newsletter.id, NOW);
+
+    const later = new Date(NOW.getTime() + 60_000);
+    await setListed(db, own, { ...listing, offers: "Buy followers at spam.example" }, later);
+    const queued = await pendingListings(db, later);
+    expect(queued[0]?.alreadyPublic).toBe(true);
+
+    await keepPreviousListing(db, newsletter.id);
+    // Out of the queue, still on the list.
+    expect(await pendingListings(db, later)).toEqual([]);
+    expect((await listListings(db, later)).map((l) => l.id)).toEqual([newsletter.id]);
+
+    // And it is not a way to publish something that was never approved.
+    const fresh = await createListing(
+      db,
+      {
+        name: "Never Approved",
+        kind: "app",
+        website: "https://never.example",
+        offers: "A slot in our onboarding email",
+        needs: "A billing tool my users would pay for",
+      },
+      NOW,
+    );
+    await expectSurka(keepPreviousListing(db, fresh.party.id), "not_found");
   });
 
   it("will not approve a business that never asked", async () => {

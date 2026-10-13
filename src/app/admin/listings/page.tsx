@@ -6,7 +6,7 @@ import { formatShortDate } from "@/lib/dates";
 import { KIND_LABEL } from "@/lib/present";
 import { describeRecord } from "@/lib/reputation";
 import { listListings, type Listing, partyRecords, pendingListings } from "@/lib/services/swaps";
-import { approveListingAction, unlistPartyAction } from "../actions";
+import { approveListingAction, keepListingAction, unlistPartyAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Partner list", robots: { index: false } };
@@ -42,8 +42,10 @@ export default async function ListingsPage({
         <div>
           <h1 className="text-3xl font-semibold">Partner list</h1>
           <p className="mt-2 max-w-prose text-muted">
-            Nothing here is public until you approve it. Read the name and the website: the one thing you are
-            checking is whether this is plausibly that business, since nothing else can.
+            A new listing is not public until you approve it. An edit to one that is already public goes out
+            straight away and comes back here to be read, because taking a live listing down over a change
+            punishes the honest case. Read the name and the website: the one thing you are checking is whether
+            this is plausibly that business, since nothing else can.
           </p>
         </div>
         <ButtonLink href="/partners">View the public page</ButtonLink>
@@ -59,7 +61,13 @@ export default async function ListingsPage({
           <ul className="mt-4 divide-y divide-line overflow-hidden rounded-xl border border-spark/40 bg-white">
             {pending.map((l) => (
               <li key={l.id} className="px-5 py-4">
-                <Entry listing={l} label="Asked" />
+                <Entry listing={l} label={l.alreadyPublic ? "Edited" : "Asked"} />
+                {l.alreadyPublic ? (
+                  <p className="mt-2 text-[0.875rem] text-muted">
+                    Already on the list. These are the new words, live now, and this is your chance to read
+                    them.
+                  </p>
+                ) : null}
                 {/* The record follows the business row, and submitting the
                     public form again makes a new row, so a bad record is shed
                     by delisting and re-listing. This is the only place that
@@ -80,15 +88,26 @@ export default async function ListingsPage({
                   <form action={approveListingAction}>
                     <input type="hidden" name="partyId" value={l.id} />
                     <Button type="submit" variant="action">
-                      Put it on the list
+                      {l.alreadyPublic ? "Publish the change" : "Put it on the list"}
                     </Button>
                   </form>
+                  {/* Two different rejections, and they used to share one
+                      button. On a listing that is already public this is an
+                      edit, so refusing it must leave the business alone;
+                      unlistParty clears both stamps and would have removed a
+                      business that was approved weeks ago. */}
+                  {l.alreadyPublic ? (
+                    <form action={keepListingAction}>
+                      <input type="hidden" name="partyId" value={l.id} />
+                      <Button type="submit">Keep the old version</Button>
+                    </form>
+                  ) : null}
                   <form action={unlistPartyAction}>
                     <input type="hidden" name="partyId" value={l.id} />
-                    {/* Clears the request as well, or it reappears here
-                        tomorrow waiting to be declined again. */}
+                    {/* Clears the request too, or it reappears here tomorrow
+                        waiting to be declined again. */}
                     <Button type="submit" variant="danger">
-                      Decline
+                      {l.alreadyPublic ? "Take it off the list" : "Decline"}
                     </Button>
                   </form>
                 </div>
