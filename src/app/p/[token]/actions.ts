@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
 import { messageFor } from "@/lib/errors";
@@ -33,6 +34,11 @@ export async function updateListingAction(formData: FormData) {
   } catch (error) {
     return backTo(token, { error: messageFor(error) });
   }
+  // The public pages are cached, and /list promises a business can remove
+  // itself at any time, so this write has to drop them.
+  revalidatePath("/partners");
+  revalidatePath("/sitemap.xml");
+  if (before) revalidatePath(`/partners/${before.party.id}`);
   // Three states, not two. "Your listing is live" fired for the first request
   // as well, where setListed had just written listedAt: null, so it contradicted
   // the paragraph the reader lands on.

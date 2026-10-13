@@ -523,6 +523,9 @@ async function run() {
   const waitingId = queue.html.match(/name="partyId" value="([0-9a-f-]{36})"/)?.[1];
   const approved = await submit("/admin/listings", 'name="partyId"', { partyId: waitingId });
   check(query(approved.location, "ok")?.includes("public partner list") ?? false, "the operator approves it");
+  // Immediately, with no wait. /partners is cached now, so this check is also
+  // the proof that approving drops that cache: without revalidatePath it would
+  // serve the old page for five minutes and this would fail.
   check((await get("/partners")).html.includes("Receipt Butler"), "the approved listing is on the public list");
 
   const removed = await submit(managePath, 'name="needs"', {

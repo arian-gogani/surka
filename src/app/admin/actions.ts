@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
@@ -24,6 +25,23 @@ import {
   verifyCommitment,
 } from "@/lib/services/swaps";
 import type { NewSwapState } from "./swaps/new/state";
+
+/**
+ * Drops the cached public directory pages.
+ *
+ * Those two pages are cached, which is what lets a crawler sweep them without
+ * waking the database. Caching them without this would break a promise: /list
+ * says a business can remove itself at any time, and a cached profile page
+ * would keep serving a delisted business for the whole window. Every write
+ * that changes what those pages say calls this, so the stale window on the
+ * paths that matter is zero and the timed revalidate only covers a record
+ * changing, where a few minutes of lag is harmless.
+ */
+function revalidateDirectory(partyId?: string): void {
+  revalidatePath("/partners");
+  revalidatePath("/sitemap.xml");
+  if (partyId) revalidatePath(`/partners/${partyId}`);
+}
 
 function go(path: string, params: Record<string, string> = {}): never {
   const query = new URLSearchParams(params).toString();
@@ -130,6 +148,7 @@ export async function updatePartyAction(formData: FormData) {
   const partyId = String(formData.get("partyId") ?? "");
   try {
     await updateParty(await getDb(), partyId, partyFields(formData));
+    revalidateDirectory(partyId);
   } catch (error) {
     go("/admin/parties", { error: messageFor(error) });
   }
@@ -176,7 +195,9 @@ export async function createSwapAction(_prev: NewSwapState, formData: FormData):
 export async function approveListingAction(formData: FormData) {
   await requireOperator();
   try {
-    await approveListing(await getDb(), String(formData.get("partyId") ?? ""));
+    const partyId = String(formData.get("partyId") ?? "");
+    await approveListing(await getDb(), partyId);
+    revalidateDirectory(partyId);
   } catch (error) {
     go("/admin/listings", { error: messageFor(error) });
   }
@@ -186,7 +207,9 @@ export async function approveListingAction(formData: FormData) {
 export async function keepListingAction(formData: FormData) {
   await requireOperator();
   try {
-    await keepPreviousListing(await getDb(), String(formData.get("partyId") ?? ""));
+    const partyId = String(formData.get("partyId") ?? "");
+    await keepPreviousListing(await getDb(), partyId);
+    revalidateDirectory(partyId);
   } catch (error) {
     go("/admin/listings", { error: messageFor(error) });
   }
@@ -196,7 +219,9 @@ export async function keepListingAction(formData: FormData) {
 export async function unlistPartyAction(formData: FormData) {
   await requireOperator();
   try {
-    await unlistParty(await getDb(), String(formData.get("partyId") ?? ""));
+    const partyId = String(formData.get("partyId") ?? "");
+    await unlistParty(await getDb(), partyId);
+    revalidateDirectory(partyId);
   } catch (error) {
     go("/admin/listings", { error: messageFor(error) });
   }

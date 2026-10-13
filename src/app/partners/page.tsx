@@ -15,7 +15,18 @@ import { listListings } from "@/lib/services/swaps";
  * page that breaks that: a founder lists what they have and what they want,
  * and a stranger can propose to them without anyone making an introduction.
  */
-export const dynamic = "force-dynamic";
+/**
+ * Cached, and dropped explicitly whenever a listing changes.
+ *
+ * force-dynamic meant every crawler hit, social-preview fetch and bot sweep
+ * ran the queries behind this page, which also kept the database awake around
+ * the clock on a site with no users. Five minutes is the floor on a record
+ * changing, which is the only thing not covered by an explicit invalidation;
+ * approving, refusing, removing and editing a listing all drop these pages
+ * immediately, because /list promises a business can remove itself at any time
+ * and a cached page would have made that false.
+ */
+export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: "Founders looking for a cross-promotion partner",
