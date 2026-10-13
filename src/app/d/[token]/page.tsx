@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { CopyLink } from "@/components/copy-link";
 import { DealSheet } from "@/components/deal-sheet";
@@ -48,9 +49,14 @@ export default async function SwapLinkPage({ params, searchParams }: Props) {
     verifyNotice(query.ok, query.s),
   ]);
 
+  // A prefetch or a link scanner must not mark the link as opened: that is the
+  // signal the operator reads and the nudge queue keys on.
+  const purpose = (await headers()).get("sec-purpose") ?? (await headers()).get("purpose") ?? "";
+  const counts = !purpose.toLowerCase().includes("prefetch");
+
   let view: SideView;
   try {
-    view = await getSwapForToken(await getDb(), token);
+    view = await getSwapForToken(await getDb(), token, new Date(), { counts });
   } catch (e) {
     if (e instanceof SurkaError && e.code === "not_found") notFound();
     throw e;

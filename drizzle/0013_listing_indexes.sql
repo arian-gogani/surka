@@ -1,0 +1,2 @@
+CREATE INDEX "parties_listed_idx" ON "parties" USING btree ("listed_at") WHERE "parties"."listed_at" is not null;--> statement-breakpoint
+CREATE INDEX "parties_requested_idx" ON "parties" USING btree ("listing_requested_at") WHERE "parties"."listing_requested_at" is not null;

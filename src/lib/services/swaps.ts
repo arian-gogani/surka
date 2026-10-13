@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, exists, gt, inArray, isNotNull, isNull, notInArray, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { cache } from "react";
 import type { z } from "zod";
 import type { Db } from "@/db/client";
 import {
@@ -390,7 +391,11 @@ function hostOf(url: string | null): string | null {
 }
 
 /** Listings waiting on the operator, oldest first: a queue, not a feed. */
-export async function pendingListings(db: Db, now = new Date()): Promise<(Listing & { sameSite: SameSite[] })[]> {
+export async function pendingListings(
+  db: Db,
+  now = new Date(),
+  shared?: Map<string, TrackRecord>,
+): Promise<(Listing & { sameSite: SameSite[] })[]> {
   const rows = await db
     .select({
       id: parties.id,
@@ -413,9 +418,21 @@ export async function pendingListings(db: Db, now = new Date()): Promise<(Listin
     )
     .orderBy(asc(parties.listingRequestedAt));
   const [records, everyone] = await Promise.all([
-    partyRecords(db, now),
+    shared ? Promise.resolve(shared) : partyRecords(db, now),
     db.select({ id: parties.id, name: parties.name, website: parties.website }).from(parties),
   ]);
+  // Hosts parsed once, not once per comparison. This used to construct a URL
+  // for every party on every pending row, so twenty pending against three
+  // hundred parties was six thousand parses per render.
+  const byHost = new Map<string, { id: string; name: string }[]>();
+  for (const party of everyone) {
+    const host = hostOf(party.website);
+    if (!host) continue;
+    const bucket = byHost.get(host);
+    if (bucket) bucket.push(party);
+    else byHost.set(host, [party]);
+  }
+
   return rows.map((row) => {
     const host = hostOf(row.website);
     return {
@@ -424,11 +441,9 @@ export async function pendingListings(db: Db, now = new Date()): Promise<(Listin
       needs: row.needs ?? "",
       listedAt: row.listedAt as Date,
       record: records.get(row.id) ?? NO_RECORD,
-      sameSite: host
-        ? everyone
-            .filter((p) => p.id !== row.id && hostOf(p.website) === host)
-            .map((p) => ({ partyId: p.id, name: p.name, record: records.get(p.id) ?? NO_RECORD }))
-        : [],
+      sameSite: (host ? (byHost.get(host) ?? []) : [])
+        .filter((p) => p.id !== row.id)
+        .map((p) => ({ partyId: p.id, name: p.name, record: records.get(p.id) ?? NO_RECORD })),
     };
   });
 }
@@ -523,7 +538,15 @@ export async function getListingForToken(
  * One query for the rows and one for every record, because this page is the
  * growth loop and will be the most-read page on the site.
  */
-export async function listListings(db: Db, now = new Date()): Promise<Listing[]> {
+export async function listListings(
+  db: Db,
+  now = new Date(),
+  // Passed in by callers that need two of these at once. /admin/listings asked
+  // for the pending queue and the live list together, and each computed every
+  // party's record internally, so the same whole-table scan ran twice in one
+  // render.
+  shared?: Map<string, TrackRecord>,
+): Promise<Listing[]> {
   const [rows, records] = await Promise.all([
     db
       .select({
@@ -538,7 +561,7 @@ export async function listListings(db: Db, now = new Date()): Promise<Listing[]>
       .from(parties)
       .where(isNotNull(parties.listedAt))
       .orderBy(desc(parties.listedAt)),
-    partyRecords(db, now),
+    shared ? Promise.resolve(shared) : partyRecords(db, now),
   ]);
   return rows.map((row) => ({
     ...row,
@@ -558,7 +581,11 @@ export async function listListings(db: Db, now = new Date()): Promise<Listing[]>
  * times per request, on a page with no rate limit. Only a listed business
  * resolves, so a public id is not a way to reach a private one.
  */
-export async function getListing(db: Db, partyId: string, now = new Date()): Promise<Listing | null> {
+export const getListing = cache(async function getListing(
+  db: Db,
+  partyId: string,
+  now = new Date(),
+): Promise<Listing | null> {
   if (!isUuid(partyId)) return null;
   const [row] = await db
     .select({
@@ -581,7 +608,7 @@ export async function getListing(db: Db, partyId: string, now = new Date()): Pro
     listedAt: row.listedAt,
     record: await partyRecord(db, row.id, now),
   };
-}
+});
 
 export async function listParties(db: Db): Promise<Party[]> {
   return db.select().from(parties).orderBy(asc(parties.name));
@@ -654,10 +681,18 @@ export async function partyRecord(db: Db, partyId: string, now = new Date()): Pr
       and(
         inArray(swaps.openedBy, INDEPENDENT),
         inArray(swaps.status, COUNTS),
-        or(
-          and(eq(commitments.side, "a"), eq(swaps.partyAId, partyId)),
-          and(eq(commitments.side, "b"), eq(swaps.partyBId, partyId)),
-        ),
+        /*
+         * The party test is on swaps alone, and the side is derived from it.
+         *
+         * This used to be an OR of two branches, each constraining a column in
+         * commitments and a column in swaps at once. Postgres cannot collapse
+         * that into a bitmap over swaps_party_a_idx and swaps_party_b_idx, so
+         * it joined first and filtered after: a page showing one business's
+         * record read every commitment in the database. Written this way the
+         * party indexes fire and the cost is that party's swaps.
+         */
+        or(eq(swaps.partyAId, partyId), eq(swaps.partyBId, partyId)),
+        sql`${commitments.side} = case when ${swaps.partyAId} = ${partyId} then 'a' else 'b' end`,
       ),
     );
   return computeRecord(rows, now);
@@ -879,7 +914,11 @@ export async function getSwapDetail(db: Db, swapId: string): Promise<SwapDetail>
         .from(results)
         .where(eq(results.swapId, swapId))
         .orderBy(asc(results.side), asc(results.metric)),
-      db.select().from(events).where(eq(events.swapId, swapId)).orderBy(desc(events.seq)),
+      // Capped. events grows for the life of a swap, with a row per reminder
+      // per commitment, and the page renders all of them. The newest 200 is
+      // more history than anyone reads and keeps a long-running swap from
+      // making its own page slow.
+      db.select().from(events).where(eq(events.swapId, swapId)).orderBy(desc(events.seq)).limit(200),
     ]);
   const partyA = partyRows.find((p) => p.id === swap.partyAId);
   const partyB = partyRows.find((p) => p.id === swap.partyBId);
@@ -935,7 +974,12 @@ export interface SideView extends Omit<SwapDetail, "trackingLinks"> {
 }
 
 /** What one side sees through its private link. Marks the link as viewed. */
-export async function getSwapForToken(db: Db, token: string, now = new Date()): Promise<SideView> {
+export async function getSwapForToken(
+  db: Db,
+  token: string,
+  now = new Date(),
+  { counts = true } = {},
+): Promise<SideView> {
   const access = await requireAccess(db, token);
   const detail = await getSwapDetail(db, access.swapId);
   const mine = access.side === "a" ? detail.swap.partyAId : detail.swap.partyBId;
@@ -944,10 +988,16 @@ export async function getSwapForToken(db: Db, token: string, now = new Date()): 
     partyRecord(db, detail.swap.partyAId, now),
     partyRecord(db, detail.swap.partyBId, now),
   ]);
-  if (!access.lastViewedAt) {
-    await logEvent(db, access.swapId, "viewed", { side: access.side });
+  // Only a real visit marks the link as opened. A mail client's link scanner
+  // or a chat unfurler would otherwise flip lastViewedAt, which is exactly
+  // what the operator reads as "Last opened" and what the unseen-proposal
+  // queue keys on, so a proposal nobody read could drop off the nudge list.
+  if (counts) {
+    if (!access.lastViewedAt) {
+      await logEvent(db, access.swapId, "viewed", { side: access.side });
+    }
+    await db.update(swapAccess).set({ lastViewedAt: now }).where(eq(swapAccess.token, token));
   }
-  await db.update(swapAccess).set({ lastViewedAt: now }).where(eq(swapAccess.token, token));
   return {
     ...detail,
     side: access.side,

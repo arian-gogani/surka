@@ -5,7 +5,7 @@ import { getDb } from "@/db/client";
 import { formatShortDate } from "@/lib/dates";
 import { KIND_LABEL } from "@/lib/present";
 import { describeRecord } from "@/lib/reputation";
-import { listListings, type Listing, pendingListings } from "@/lib/services/swaps";
+import { listListings, type Listing, partyRecords, pendingListings } from "@/lib/services/swaps";
 import { approveListingAction, unlistPartyAction } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +26,15 @@ export default async function ListingsPage({
 }) {
   const { error, ok } = await searchParams;
   const db = await getDb();
-  const [pending, live] = await Promise.all([pendingListings(db), listListings(db)]);
+  // One record scan for the page, not one per call. Both of these compute
+  // every party's record internally, so asking for them together ran the same
+  // whole-table scan twice.
+  const now = new Date();
+  const records = await partyRecords(db, now);
+  const [pending, live] = await Promise.all([
+    pendingListings(db, now, records),
+    listListings(db, now, records),
+  ]);
 
   return (
     <AdminShell error={error} ok={ok}>

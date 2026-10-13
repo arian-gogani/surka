@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   bigserial,
   date,
@@ -51,38 +52,52 @@ const createdAt = () =>
   timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 
 /** A business on either side of a swap: an app, a newsletter, a community. */
-export const parties = pgTable("parties", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull(),
-  kind: text("kind").$type<PartyKind>().notNull().default("app"),
-  website: text("website"),
-  contactName: text("contact_name"),
-  email: text("email"),
-  offers: text("offers"),
-  needs: text("needs"),
-  /** Operator-only. Never shown to either side, and never in the directory. */
-  notes: text("notes"),
-  /**
-   * When this business asked to be on the partner list, or null.
-   *
-   * Opt-in, and only ever set by someone holding one of that business's links,
-   * which is what proves they are it. Asking is not the same as appearing:
-   * see listedAt.
-   */
-  listingRequestedAt: timestamp("listing_requested_at", { withTimezone: true }),
-  /**
-   * When the operator let it onto the public list, or null.
-   *
-   * Nothing verifies that a listing is the business it claims to be, and the
-   * directory is an indexable page carrying a name, a link and two paragraphs
-   * of self-written copy. Publishing on submit meant anyone could put a well
-   * known company, or a competitor, on it and say anything under their name.
-   * Email verification is the usual answer and needs an email provider; one
-   * operator reading one queue needs nothing and holds today.
-   */
-  listedAt: timestamp("listed_at", { withTimezone: true }),
-  createdAt: createdAt(),
-});
+export const parties = pgTable(
+  "parties",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    kind: text("kind").$type<PartyKind>().notNull().default("app"),
+    website: text("website"),
+    contactName: text("contact_name"),
+    email: text("email"),
+    offers: text("offers"),
+    needs: text("needs"),
+    /** Operator-only. Never shown to either side, and never in the directory. */
+    notes: text("notes"),
+    /**
+     * When this business asked to be on the partner list, or null.
+     *
+     * Opt-in, and only ever set by someone holding one of that business's links,
+     * which is what proves they are it. Asking is not the same as appearing:
+     * see listedAt.
+     */
+    listingRequestedAt: timestamp("listing_requested_at", { withTimezone: true }),
+    /**
+     * When the operator let it onto the public list, or null.
+     *
+     * Nothing verifies that a listing is the business it claims to be, and the
+     * directory is an indexable page carrying a name, a link and two paragraphs
+     * of self-written copy. Publishing on submit meant anyone could put a well
+     * known company, or a competitor, on it and say anything under their name.
+     * Email verification is the usual answer and needs an email provider; one
+     * operator reading one queue needs nothing and holds today.
+     */
+    listedAt: timestamp("listed_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    // Partial, because the listed subset stays small while parties does not:
+    // every public form submission mints one or two unlisted rows. Serves the
+    // directory's own query and the dashboard's count of it.
+    index("parties_listed_idx").on(t.listedAt).where(sql`${t.listedAt} is not null`),
+    // Serves the review queue and its dashboard count. The rest of that
+    // predicate cannot be indexed, but this narrows it to requesters.
+    index("parties_requested_idx")
+      .on(t.listingRequestedAt)
+      .where(sql`${t.listingRequestedAt} is not null`),
+  ],
+);
 
 /**
  * Secret link a business uses to manage its own listing. No accounts.
