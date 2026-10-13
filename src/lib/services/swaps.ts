@@ -911,6 +911,14 @@ export interface PartnerPlacement {
 }
 
 export interface SideView extends Omit<SwapDetail, "trackingLinks"> {
+  /**
+   * Whether this side's business already has a listing link.
+   *
+   * The deal sheet offered "Set up your listing" unconditionally, and claiming
+   * refuses a second link, which /list mints up front. So the common case was
+   * a button that always errored.
+   */
+  hasListingLink: boolean;
   side: Side;
   token: string;
   records: Record<Side, TrackRecord>;
@@ -930,7 +938,9 @@ export interface SideView extends Omit<SwapDetail, "trackingLinks"> {
 export async function getSwapForToken(db: Db, token: string, now = new Date()): Promise<SideView> {
   const access = await requireAccess(db, token);
   const detail = await getSwapDetail(db, access.swapId);
-  const [recordA, recordB] = await Promise.all([
+  const mine = access.side === "a" ? detail.swap.partyAId : detail.swap.partyBId;
+  const [claimed, recordA, recordB] = await Promise.all([
+    db.select({ token: partyAccess.token }).from(partyAccess).where(eq(partyAccess.partyId, mine)).limit(1),
     partyRecord(db, detail.swap.partyAId, now),
     partyRecord(db, detail.swap.partyBId, now),
   ]);
@@ -948,6 +958,7 @@ export async function getSwapForToken(db: Db, token: string, now = new Date()): 
     // anything renders it: filtering at the far end of the wire would have left
     // the other side's codes sitting in the HTML of this side's page.
     trackingLinks: detail.trackingLinks.filter((l) => l.side === access.side),
+    hasListingLink: claimed.length > 0,
     partnerPlacements: detail.trackingLinks
       .filter((l) => l.side !== access.side)
       .map((l) => ({ label: l.label, clicks: l.clicks })),
@@ -1467,6 +1478,13 @@ export async function listSwaps(db: Db): Promise<SwapListItem[]> {
   if (rows.length === 0) return [];
 
   const swapIds = rows.map((r) => r.swap.id);
+  // Both operator counts below are things only verifyCommitment can clear, and
+  // it refuses anything but an accepted swap, so a delivered or called-off
+  // commitment on a cancelled swap would sit in the count with no control
+  // anywhere that could clear it. Filtered in memory rather than in SQL
+  // because the row set is already per swap and an empty id list is an awkward
+  // thing to express in a where clause.
+  const live = new Set(rows.filter((r) => r.swap.status === "accepted").map((r) => r.swap.id));
   const [pending, delivered, calledOff] = await Promise.all([
     db
       .select({
@@ -1489,7 +1507,12 @@ export async function listSwaps(db: Db): Promise<SwapListItem[]> {
     db
       .select({ swapId: commitments.swapId })
       .from(commitments)
-      .where(and(inArray(commitments.swapId, swapIds), eq(commitments.status, "delivered"))),
+      .where(
+        and(
+          inArray(commitments.swapId, swapIds),
+          eq(commitments.status, "delivered"),
+        ),
+      ),
     // These wait on the operator too: nothing else will ever move them, and
     // the record counts them only once the deadline has long passed.
     db
@@ -1506,10 +1529,12 @@ export async function listSwaps(db: Db): Promise<SwapListItem[]> {
 
   const checksBySwap = new Map<string, number>();
   for (const c of delivered) {
+    if (!live.has(c.swapId)) continue;
     checksBySwap.set(c.swapId, (checksBySwap.get(c.swapId) ?? 0) + 1);
   }
   const calledOffBySwap = new Map<string, number>();
   for (const c of calledOff) {
+    if (!live.has(c.swapId)) continue;
     calledOffBySwap.set(c.swapId, (calledOffBySwap.get(c.swapId) ?? 0) + 1);
   }
   const nextBySwap = new Map<string, SwapListItem["nextDue"]>();

@@ -18,8 +18,18 @@ import { createPgliteDb } from "../src/db/client";
 const MIGRATION_LOCK = 4815162342;
 
 async function main() {
+  /*
+   * A preview migrates its own database, if it has one.
+   *
+   * The app now refuses to open production from a preview and tells you to set
+   * PREVIEW_DATABASE_URL. Following that advice used to leave you with a
+   * branch database nothing had ever migrated, because this script only ever
+   * looked at DATABASE_URL and bailed out of preview before reaching it. The
+   * remedy and the guard have to agree.
+   */
+  const preview = process.env.VERCEL_ENV === "preview" ? process.env.PREVIEW_DATABASE_URL?.trim() : null;
   // Migrations go through the direct connection when a pooled one is also set.
-  const url = (process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL)?.trim();
+  const url = preview || (process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL)?.trim();
   if (!url && process.env.VERCEL) {
     console.error("No DATABASE_URL on this Vercel project. Connect a Postgres database (Storage, then Create Database), then redeploy.");
     process.exit(1);
@@ -33,17 +43,16 @@ async function main() {
   /*
    * A preview build must never change the production schema.
    *
-   * The Neon integration scopes one DATABASE_URL to both Preview and
-   * Production unless per-branch databases are set up, so without this every
-   * pull request build migrated production, and two open pull requests could
-   * race each other. Previews still read and write that database, which is its
-   * own thing to fix, but a preview cannot now reshape it.
-   *
-   * Set MIGRATE_ON_PREVIEW=1 once previews have a database of their own.
+   * Only when it has no database of its own. The Neon integration scopes one
+   * DATABASE_URL to both Preview and Production unless per-branch databases
+   * are set up, so without this every pull request build migrated production
+   * and two open pull requests could race each other. With
+   * PREVIEW_DATABASE_URL set, the block above has already pointed this run at
+   * the branch and there is nothing to refuse.
    */
-  if (process.env.VERCEL_ENV === "preview" && process.env.MIGRATE_ON_PREVIEW !== "1") {
+  if (process.env.VERCEL_ENV === "preview" && !preview && process.env.MIGRATE_ON_PREVIEW !== "1") {
     console.warn(
-      "Skipping migrations: this is a preview build, and preview shares DATABASE_URL with production. A preview that needs a new column will not work until the change is on the default branch. Set MIGRATE_ON_PREVIEW=1 when previews have their own database.",
+      "Skipping migrations: this is a preview build with no PREVIEW_DATABASE_URL, and DATABASE_URL is shared with production. Point PREVIEW_DATABASE_URL at a Neon branch and this build will migrate that instead. Set MIGRATE_ON_PREVIEW=1 to migrate production from a preview on purpose.",
     );
     return;
   }

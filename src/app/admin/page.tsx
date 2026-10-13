@@ -104,8 +104,8 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       {emailOff ? (
         <Notice tone="error">
           No reminder has been delivered: RESEND_API_KEY or EMAIL_FROM is missing. Nothing is lost, every due
-          reminder stays due, and the daily run answers 503 until both are set. Until then the dates below are
-          yours to chase by hand.
+          reminder stays due, and the daily run says so loudly instead of reporting success. Until then the
+          dates below are yours to chase by hand.
         </Notice>
       ) : metrics.unchaseableSides > 0 ? (
         <Notice tone="error">

@@ -101,10 +101,24 @@ export default async function ListingPage({ params, searchParams }: Props) {
             />
           </Field>
           <Field label="What you can offer a partner" hint="Audience, placements, an integration, a bundle.">
-            <textarea name="offers" rows={3} maxLength={1000} defaultValue={party.offers ?? ""} className="field" />
+            <textarea
+              name="offers"
+              rows={3}
+              minLength={10}
+              maxLength={1000}
+              defaultValue={party.offers ?? ""}
+              className="field"
+            />
           </Field>
           <Field label="What you're looking for">
-            <textarea name="needs" rows={3} maxLength={1000} defaultValue={party.needs ?? ""} className="field" />
+            <textarea
+              name="needs"
+              rows={3}
+              minLength={10}
+              maxLength={1000}
+              defaultValue={party.needs ?? ""}
+              className="field"
+            />
           </Field>
           <div className="flex flex-wrap items-center gap-3">
             <Button type="submit" name="listed" value="yes" variant="action">

@@ -342,10 +342,14 @@ async function run() {
   check(/^\/p\/[A-Za-z0-9_-]{24}$/.test(ownPath), "a swap link claims a listing link once");
   check(!ownPath.includes(partnerToken), "the claimed link is a new one, not the swap link");
 
-  const again = await submit(`/d/${partnerToken}`, "Set up your listing", { token: partnerToken });
+  // The second claim is now unreachable through the page, which is the point:
+  // claiming refuses a second link, so offering the button to a business that
+  // already has one was a control that could only ever error.
+  const afterClaim = await get(`/d/${partnerToken}`);
   check(
-    query(again.location, "error")?.includes("already has a listing link") ?? false,
-    "a second claim from a swap link is refused",
+    !visible(afterClaim.html).includes("Set up your listing") &&
+      visible(afterClaim.html).includes("already has a listing link"),
+    "the deal sheet stops offering a claim once there is one",
   );
 
   const ownToken = ownPath.slice("/p/".length);

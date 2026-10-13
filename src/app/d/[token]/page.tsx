@@ -132,7 +132,12 @@ export default async function SwapLinkPage({ params, searchParams }: Props) {
               body={
                 partnerLinkToSend
                   ? "Send them the link below. Nothing happens until they open it."
-                  : "They have the deal sheet. You'll hear from us when they answer."
+                  : view.swap.openedBy === "directory"
+                    ? // Nobody sent this one. It sits on their partner-list page
+                      // until they look, which is exactly why the operator has a
+                      // queue of proposals nobody has opened.
+                      "It's waiting on their partner-list page. We don't email proposals yet, so we'll nudge them ourselves."
+                    : "They have the deal sheet. You'll hear from us when they answer."
               }
             >
               {sheet}
@@ -419,7 +424,24 @@ function SwapRoom({
 
       {!myEmail && !done ? <ReminderForm token={view.token} /> : null}
 
-      <ClaimListing token={view.token} name={myName} />
+      {/* Claiming refuses a second link, and /list mints one up front, so
+          offering this to a business that already has one was a button that
+          always errored. They go to their own page instead. */}
+      {view.hasListingLink ? (
+        <aside className="rounded-xl border border-line bg-white p-5 sm:p-6">
+          <h2 className="text-xl font-semibold">Your listing</h2>
+          <p className="mt-2 max-w-prose text-muted">
+            {myName} already has a listing link. Open it to change what the partner list says about you, or to
+            come off the list.
+          </p>
+          <p className="mt-3 text-[0.9375rem] text-muted">
+            Lost it? <a href="/partners" className="underline underline-offset-4">See the list</a>, or email us
+            and we&apos;ll sort it out.
+          </p>
+        </aside>
+      ) : (
+        <ClaimListing token={view.token} name={myName} />
+      )}
 
       <section aria-labelledby="mine">
         <h2 id="mine" className="mb-3 text-xl font-semibold">

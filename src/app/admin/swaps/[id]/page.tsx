@@ -310,6 +310,14 @@ export default async function SwapAdminPage({
               ))}
             </ul>
           )}
+          {/* addResult refuses anything but an agreed swap, so on a draft,
+              declined or cancelled one this form only ever errored. The deal
+              sheet got this right by rendering results inside SwapRoom. */}
+          {status !== "accepted" && status !== "completed" ? (
+            <p className="text-[0.9375rem] text-muted">
+              Results open once both sides have agreed to the swap.
+            </p>
+          ) : (
           <form action={addResultAction} className="space-y-3 rounded-xl border border-line bg-white p-4">
             <div className="grid gap-3 sm:grid-cols-3">
               <Field label="Growth for">
@@ -337,6 +345,7 @@ export default async function SwapAdminPage({
             <Button type="submit">Save result</Button>
             <input type="hidden" name="swapId" value={d.swap.id} />
           </form>
+          )}
         </section>
       </div>
 

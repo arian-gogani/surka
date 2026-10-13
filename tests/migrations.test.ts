@@ -2,6 +2,7 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } f
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { databaseUrl } from "@/db/client";
 
 const DRIZZLE = path.join(process.cwd(), "drizzle");
 
@@ -179,6 +180,9 @@ describe("which database a deployment may open", () => {
 
   beforeEach(() => {
     for (const key of ENV_KEYS) saved.set(key, process.env[key]);
+    process.env.DATABASE_URL = "postgres://production/live";
+    delete process.env.PREVIEW_DATABASE_URL;
+    delete process.env.ALLOW_PRODUCTION_DB_IN_PREVIEW;
   });
 
   afterEach(() => {
@@ -188,42 +192,25 @@ describe("which database a deployment may open", () => {
     }
   });
 
-  /** The handle is cached on globalThis, so clearing that is enough. */
-  async function open() {
-    delete (globalThis as { __surkaDb?: unknown }).__surkaDb;
-    const { getDb } = await import("@/db/client");
-    return getDb();
-  }
-
-  it("refuses the production database in a preview", async () => {
+  it("refuses the production database in a preview", () => {
     process.env.VERCEL_ENV = "preview";
-    process.env.DATABASE_URL = "postgres://production/live";
-    delete process.env.PREVIEW_DATABASE_URL;
-    delete process.env.ALLOW_PRODUCTION_DB_IN_PREVIEW;
-    await expect(open()).rejects.toThrow(/PREVIEW_DATABASE_URL is not set/);
+    expect(() => databaseUrl()).toThrow(/PREVIEW_DATABASE_URL is not set/);
   });
 
-  it("takes the preview's own database when it has one", async () => {
+  it("takes the preview's own database when it has one", () => {
     process.env.VERCEL_ENV = "preview";
-    process.env.DATABASE_URL = "postgres://production/live";
     process.env.PREVIEW_DATABASE_URL = "postgres://branch/preview";
-    // Resolves, because postgres() connects lazily. The point is that the
-    // guard let it through rather than refusing.
-    await expect(open()).resolves.toBeDefined();
+    expect(databaseUrl()).toBe("postgres://branch/preview");
   });
 
-  it("lets the choice be made on purpose", async () => {
+  it("lets the choice be made on purpose", () => {
     process.env.VERCEL_ENV = "preview";
-    process.env.DATABASE_URL = "postgres://production/live";
-    delete process.env.PREVIEW_DATABASE_URL;
     process.env.ALLOW_PRODUCTION_DB_IN_PREVIEW = "1";
-    await expect(open()).resolves.toBeDefined();
+    expect(databaseUrl()).toBe("postgres://production/live");
   });
 
-  it("leaves production alone", async () => {
+  it("leaves production alone", () => {
     process.env.VERCEL_ENV = "production";
-    process.env.DATABASE_URL = "postgres://production/live";
-    delete process.env.PREVIEW_DATABASE_URL;
-    await expect(open()).resolves.toBeDefined();
+    expect(databaseUrl()).toBe("postgres://production/live");
   });
 });

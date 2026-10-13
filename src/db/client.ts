@@ -60,8 +60,13 @@ const store = globalThis as unknown as { __surkaDb?: Promise<Db> };
  * Set PREVIEW_DATABASE_URL to a Neon branch, or ALLOW_PRODUCTION_DB_IN_PREVIEW
  * to 1 if you genuinely want a preview pointed at live data and have decided
  * that on purpose.
+ *
+ * Exported so the rule can be tested without opening anything. Testing it
+ * through getDb meant postgres.js started a real connection to a made-up host
+ * on every case, and those attempts sat open: the suite went from seconds to
+ * two and a half minutes and began failing a different test each run.
  */
-function databaseUrl(): string | undefined {
+export function databaseUrl(): string | undefined {
   const url = process.env.DATABASE_URL?.trim();
   if (process.env.VERCEL_ENV !== "preview") return url;
 
